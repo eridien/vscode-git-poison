@@ -1,0 +1,55 @@
+{
+  "name": "git-poison",
+  "displayName": "Git Poison",
+  "description": "VS Code extension that blocks git commit if any file text contains a \"Poison Pill\" string.",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eridien/vscode-git-poison.git"
+  },
+  "publisher": "eridien",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitPoison.hello",
+        "title": "Git Poison: Hello"
+      },
+      {
+        "command": "gitPoison.installHook",
+        "title": "Git Poison: Install Pre-commit Hook"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "npm run compile",
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p .",
+    "watch": "tsc -p . -w",
+    "rebuild": "rm -rf node_modules package-lock.json && npm install",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vscode-test",
+    "lint:watch": "echo 'eslint:watch not used , running eslint extension instead'"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^24.5.2",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.44.0",
+    "@typescript-eslint/parser": "^8.44.0",
+    "esbuild": "^0.23.0",
+    "eslint": "^9.36.0",
+    "typescript": "^5.9.2"
+  }
+}
