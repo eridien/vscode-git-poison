@@ -5,7 +5,7 @@
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/eridien/vscode-git-poison.git"
+    "url": "https://github.com/eridien/vscode-git-poison"
   },
   "publisher": "eridien",
   "version": "0.0.1",
