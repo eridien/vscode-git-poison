@@ -3,7 +3,7 @@ import * as path   from 'path';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('hook');
 
-const HOOK_VERSION = 8;
+const HOOK_VERSION = 10;
 
 const script = [
   '#!/bin/sh',
@@ -19,43 +19,15 @@ const script = [
                          '"$(( $(date +%N) / 1000000 ))" "$1" >> "$msgdir/hook.log"',
   '}',  
   '',
-  '# Unique id: epoch.PID.rand16 (dash-compatible, no $RANDOM)',
-  'rid="$(date +%s).$$.$(od -An -N2 -tu2 < /dev/urandom | tr -d \' \\t\')"',
-  'req="$msgdir/req.$rid.json"',
-  'res="$msgdir/res.$rid.json"',
   '',
-  '# A little context (keep it light)',
-  'branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"',
-  'author="$(git config user.name 2>/dev/null || echo unknown)"',
-  'now="$(date \'+%Y-%m-%d %H:%M:%S\')"',
+  "PATTERN='(pp)'",
   '',
-  '# Write request JSON',
-  'printf \'{ "id": "%s", "ts": "%s", "branch": "%s", "author": "%s" }\\n\' "$rid" "$now" "$branch" "$author" > "$req"',
-  'log "req $rid written; waiting for decision..."',
-  '',
-  'decision="block"',  // default block
-  'reason="timeout/no response"',
-  'tries=120   # 120 × 0.25s = 30 secs max wait',
-  '',
-  'while [ "$tries" -gt 0 ]; do',
-  '  if [ -f "$res" ]; then',
-  '    # parse tiny JSON with sed (no jq)',
-  '    dval="$(sed -n \'s/.*"decision":"\\([^"]*\\)".*/\\1/p\' "$res" | head -n1)"',
-  '    rval="$(sed -n \'s/.*"reason":"\\([^"]*\\)".*/\\1/p\' "$res" | head -n1)"',
-  '    [ -n "$dval" ] && decision="$dval"',
-  '    [ -n "$rval" ] && reason="$rval"',
-  '    break',
-  '  fi',
-  '  tries=$((tries-1))',
-  '  sleep 0.25',
-  'done',
-  '',
-  '# act on decision',
-  'if [ "$decision" = "block" ]; then',
-  '  echo "Git Poison: blocked commit ($reason)" >> "$msgdir/hook.log"',
+  '# Search the staged (index) content only',
+  'if git grep -I -q --cached -e "$PATTERN" -- .; then',
+  '  echo "Git Poison: blocked commit — found \'$PATTERN\' in staged content."',
   '  exit 1',
   'fi',
-  'echo "Git Poison: allowed commit ($reason)" >> "$msgdir/hook.log"',
+  '',
   'exit 0',
 ].join('\n');
 
