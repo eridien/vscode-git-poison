@@ -15,7 +15,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   const repoRoot = folder.uri.fsPath;
   const gitDir = path.join(repoRoot, '.git');
-  log(`Activated in workspace folder: ${repoRoot}`);
+  log(`Extension activated in workspace folder: ${repoRoot}`);
   try {
     await fs.access(gitDir);
   } catch {
