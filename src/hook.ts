@@ -3,33 +3,38 @@ import * as path   from 'path';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('hook');
 
-const HOOK_VERSION = 10;
+const HOOK_VERSION = 2;
+const pillStr = '(pp)';
 
-const script = [
-  '#!/bin/sh',
-  `# token, do not remove: git-poison V${HOOK_VERSION}`,
-  'set -eu',
-  '',
-  'msgdir=".git/git-poison"',
-  'mkdir -p "$msgdir"',
-  '',
-  '# Tiny logger (timestamp + message) -> .git/git-poison/hook.log',
-  'log() {',
-  '  printf "[%s.%03d] %s\\n" "$(date \'+%m-%d %H:%M:%S\')" ' +
-                         '"$(( $(date +%N) / 1000000 ))" "$1" >> "$msgdir/hook.log"',
-  '}',  
-  '',
-  '',
-  "PATTERN='(pp)'",
-  '',
-  '# Search the staged (index) content only',
-  'if git grep -I -q --cached -e "$PATTERN" -- .; then',
-  '  echo "Git Poison: blocked commit — found \'$PATTERN\' in staged content."',
-  '  exit 1',
-  'fi',
-  '',
-  'exit 0',
-].join('\n');
+const script = 
+
+`#!/bin/sh
+# token, do not remove: git-poison ${HOOK_VERSION}
+# Git Poison: block commit if staged content contains "PILL"
+set -eu
+
+PILL='${pillStr}'
+msgdir=".git/git-poison"
+mkdir -p "$msgdir"
+
+# Search staged (index) content for matches (just filenames)
+matches=$(git grep -I --cached -l -e "$PILL" -- . || true)
+
+if [ -n "$matches" ]; then
+  # Stdout message (single header line, then one file per line)
+  printf 'Poison: The Git commit is blocked because file(s) contain the pill "%s".\n%s\n' "$PILL" "$matches"
+
+  # Log only when blocked: timestamp header then one file per line
+  {
+    printf '[%s] Commit blocked because file(s) contain "%s":\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$PILL"
+    printf '%s\n' "$matches"
+  } >> "$msgdir/hook.log"
+
+  exit 1
+fi
+
+exit 0
+`;
 
 export async function hookAlreadyInstalled(repoRoot: string): 
                      Promise<"ours" | "other" | "none" | number> {

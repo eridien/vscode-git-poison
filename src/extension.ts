@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs/promises';
 import * as path   from 'path';
 import * as hook   from './hook';
-import * as hand   from './handshake';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('extn');
 
@@ -53,7 +52,6 @@ export async function activate(context: vscode.ExtensionContext) {
     }
     if(!await hook.installHook(repoRoot, status)) return;
   }
-  hand.activate(context);
   utils.activate(context);
 }
 
