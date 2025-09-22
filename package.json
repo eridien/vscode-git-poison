@@ -9,16 +9,10 @@
   },
   "publisher": "eridien",
   "version": "0.0.1",
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "categories": [
-    "Other"
-  ],
+  "engines": { "vscode": "^1.85.0" },
+  "categories": [ "Other" ],
   "main": "./out/extension.js",
-  "activationEvents": [
-    "onStartupFinished"
-  ],
+  "activationEvents": [ "onStartupFinished" ],
   "contributes": {
     "commands": [
       {
