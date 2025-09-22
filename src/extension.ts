@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs/promises';
 import * as path   from 'path';
 import * as hook   from './hook';
+import * as hand   from './handshake';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('extn');
 
@@ -28,11 +29,13 @@ export async function activate(context: vscode.ExtensionContext) {
   if (status !== "ours") {
     if (status === "other") {
       const choice = await vscode.window.showWarningMessage(
-        "Git Poison: A Git pre-commit hook already exists from another app. See readme for details. Overwrite the other one?",
+        "Git Poison: A Git pre-commit hook already exists for another app. " +
+        "Overwrite the other one?",
         { modal: true }, "Yes", "No"
       );
       if (choice !== "Yes") {
-        log('info', "Git Poison: Extension not activated because the hook installation was cancelled.");
+        log('info', "Git Poison: Extension not activated " +
+                    "because the hook installation was cancelled.");
         return;
       }
     }
@@ -50,6 +53,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }
     if(!await hook.installHook(repoRoot, status)) return;
   }
+  hand.activate(context);
   utils.activate(context);
 }
 
