@@ -1,7 +1,7 @@
 {
   "name": "git-poison",
   "displayName": "Git Poison",
-  "description": "VS Code extension that blocks git commit if any file text contains a \"Poison Pill\" string.",
+  "description": "A VS Code extension that blocks a git commit of any file containing a \"Poison Pill\" string. Placing a pill stops accidental committing of unfinished TODOs, debug statements, secrets, etc. Provides navigation to pill locations.",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",

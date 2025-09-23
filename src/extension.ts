@@ -38,18 +38,6 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
     }
-    if(typeof status !== "number") {
-      const choice = await vscode.window.showWarningMessage(
-          `Git Poison: Is it ok to install a Git pre-commit hook? ` +
-          `It is required to activate the extension. See readme for details.`,
-        { modal: true }, 'Yes', 'No'
-      );
-      if (choice !== 'Yes') {
-        log('info', 'Git Poison: Extension not activated ' +
-                    'because the hook installation was cancelled.');
-        return;
-      }
-    }
     if(!await hook.installHook(repoRoot, status)) return;
   }
   utils.activate(context);

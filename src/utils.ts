@@ -9,7 +9,7 @@ export function activate(contextIn: vscode.ExtensionContext) {
 
 // 'err' 'info' 'nomod' 'errmsg'
 
-const outputChannel = vscode.window.createOutputChannel('git-poison');
+const outputChannel = vscode.window.createOutputChannel('Git Poison');
 
 export function getLog(module: string) : {
   log:   (...args: any[]) => void;
