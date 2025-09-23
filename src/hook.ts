@@ -3,13 +3,13 @@ import * as path   from 'path';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('hook');
 
-const HOOK_VERSION = 5;
-const DEBUG_HOOK = false; 
+const HOOK_VERSION = 0;
+const DEBUG_HOOK = true; 
 
 let pillStr = '//❌';
 let overrideSecs = 30;
 
-let repoRoot     = '';
+let repoRoot = '';
 export function activate(repoRootIn: string) {
   repoRoot = repoRootIn;
 }
@@ -39,7 +39,7 @@ dbg() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$logf"
 }
 
-dbg "\nSTART hook v${HOOK_VERSION} pill='${pillStr}' override_secs=${overrideSecs}"
+dbg "START hook v${HOOK_VERSION} pill='${pillStr}' override_secs=${overrideSecs}"
 
 # Repo context
 top="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -59,19 +59,26 @@ if [ -z "$matches_cached" ]; then
 fi
 
 # --- Override window: allow commit if within override period ---
-override_file=".git/git-poison-override-secs"
+override_file=".git/git-poison/override-secs"
 if [ -f "$override_file" ]; then
-  ov_past="$(cat "$override_file" 2>/dev/null || echo)"
+  ov_raw="$(cat "$override_file" 2>/dev/null || echo)"
+  # trim whitespace/newlines; keep only digits
+  ov_past="$(printf '%s' "$ov_raw" | tr -d ' \t\r\n' )"
+  dbg "override raw='$ov_raw' trimmed='$ov_past'"
   case "$ov_past" in ''|*[!0-9]*) ov_past='' ;; esac
   if [ -n "$ov_past" ]; then
     now="$(date +%s)"
     dbg "override check: now=$now ov_past=$ov_past override_secs=$override_secs"
     if [ "$now" -lt $((ov_past + override_secs)) ]; then
-      dbg "ALLOW within override window"
+      # print to stderr so it shows in VS Code's Git Output on success
+      printf 'Poison VS Code extension: One or more staged files contained a poison pill "%s", but the commit was successful anyway because override command was just issued.\n' "$PILL" 1>&2
+      # NEW: write notification file with current epoch seconds
+      printf '%s\n' "$now" > "$msgdir/did-override"
+      dbg "ALLOW within override window (override message printed, wrote did-override=$now)"
       exit 0
     fi
   else
-    dbg "override file present but non-numeric; ignoring"
+    dbg "override file present but non-numeric after trim; ignoring"
   fi
 else
   dbg "no override file"
@@ -81,17 +88,14 @@ fi
 unstaged_list="$(git diff --name-only 2>/dev/null || true)"
 dbg "unstaged_list: $(printf '%s' "$unstaged_list" | tr '\n' ' ')"
 
-# Working tree pills: scan ONLY files that have unstaged changes (not the whole repo)
+# Working tree pills: scan ONLY files that have unstaged changes
 matches_wc=""
 if [ -n "$unstaged_list" ]; then
-  # Avoid xargs -r (not portable); guard on non-empty above
   matches_wc=$(printf '%s\n' "$unstaged_list" | xargs git grep -I -F -l -e "$PILL" -- 2>/dev/null || true)
 fi
 dbg "matches_wc (only in unstaged files): $(printf '%s' "$matches_wc" | tr '\n' ' ')"
 
-# Determine if user removed the pill but didn't stage that removal:
-# Only consider files that are BOTH (a) in matches_cached and (b) present in unstaged_list;
-# then check that the working copy no longer contains the pill.
+# Determine if user removed the pill but didn't stage that removal
 only_in_cached=""
 for f in $matches_cached; do
   echo "$unstaged_list" | grep -qx "$f" || continue
@@ -108,15 +112,12 @@ dbg "visible_in_wc=$visible_in_wc"
 
 # --- Single-line stdout message (no inner quotes to avoid truncation) ---
 if [ -n "$only_in_cached" ]; then
-  # Pills exist only in staged version for at least one offender (user didn't stage the removal)
-  printf 'Poison vscode extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".   Hint: You removed the pill but did not stage the change. Stage the updated file(s) and try again or use Commit All.\n' "$PILL"
+  printf 'Poison VS Code extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".   Hint: You removed the pill but did not stage the change. Stage the updated file(s) and try again or use Commit All.\n' "$PILL"
 else
   if [ "$visible_in_wc" -eq 1 ]; then
-    # There are unstaged files that still contain the pill (user can view them)
-    printf 'Poison vscode extension: The Git commit was cancelled because one or more staged files contain the poison pill "%s". You can view the pills using the vscode command Git Poison: View Next Pill.\n' "$PILL"
+    printf 'Poison VS Code extension: The Git commit was cancelled because one or more staged files contain the poison pill "%s". You can view the pills using the vscode command Git Poison: View Next Pill.\n' "$PILL"
   else
-    # No unstaged files with the pill: keep message focused on staged content only
-    printf 'Poison vscode extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".\n' "$PILL"
+    printf 'Poison VS Code extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".\n' "$PILL"
   fi
 fi
 
