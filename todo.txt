@@ -2,3 +2,7 @@
 
 todo ...
   clean out old req/resp files
+
+test ...
+  check commit of all four possible staged/unstaged states
+  
