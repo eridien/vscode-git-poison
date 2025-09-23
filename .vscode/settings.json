@@ -1,1 +1,8 @@
-{}
+{
+  "eslint.lintTask.enable": true,
+  "terminal.integrated.env.linux": {
+    "PATH": "/root/.nvm/versions/node/v22.19.0/bin:${env:PATH}",
+    "NVM_DIR": "/root/.nvm",
+    "NVM_BIN": "/root/.nvm/versions/node/v22.19.0/bin"
+  }
+}

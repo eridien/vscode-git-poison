@@ -3,7 +3,7 @@ import * as path   from 'path';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('hook');
 
-const HOOK_VERSION = 3;
+const HOOK_VERSION = 5;
 const DEBUG_HOOK = false; 
 
 let pillStr = '//❌';
