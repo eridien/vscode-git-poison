@@ -1,7 +1,7 @@
 {
   "name": "git-poison",
   "displayName": "Git Poison",
-  "description": "A VS Code extension that blocks a git commit of any file containing a \"Poison Pill\" string. Placing a pill stops accidental committing of unfinished TODOs, debug statements, secrets, etc. Provides navigation to pill locations.",
+  "description": "A VS Code extension that blocks a git commit of any file containing a \"Poison Pill\" string. Placing a pill stops accidental committing of unfinished TODOs, debug statements, secrets, etc. Also provides navigation to pill locations.",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
@@ -22,12 +22,32 @@
   "contributes": {
     "commands": [
       {
-        "command": "gitPoison.hello",
-        "title": "Git Poison: Hello"
+        "command": "gitPoison.viewPreviousPill",
+        "title": "Git Poison: Jump To Previous Poison Pill"
       },
       {
-        "command": "gitPoison.installHook",
-        "title": "Git Poison: Install Pre-commit Hook"
+        "command": "gitPoison.viewNextPill",
+        "title": "Git Poison: Jump To Next Poison Pill"
+      },
+      {
+        "command": "gitPoison.overrideCommitBlocking",
+        "title": "Git Poison: Override Commit Blocking"
+      },
+      {
+        "command": "gitPoison.insertPill",
+        "title": "Git Poison: Insert Poison Pill"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "gitPoison.viewPreviousPill",
+        "key": "alt+up",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "gitPoison.viewNextPill",
+        "key": "alt+down",
+        "when": "editorTextFocus"
       }
     ]
   },

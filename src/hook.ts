@@ -3,8 +3,16 @@ import * as path   from 'path';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('hook');
 
-const HOOK_VERSION = 2;
-const pillStr = '//❌';
+const HOOK_VERSION = 3;
+const DEBUG_HOOK = false; 
+
+let pillStr = '//❌';
+let overrideSecs = 30;
+
+let repoRoot     = '';
+export function activate(repoRootIn: string) {
+  repoRoot = repoRootIn;
+}
 
 const script = 
 
@@ -15,43 +23,108 @@ set -eu
 
 # VERSION ${HOOK_VERSION}
 PILL='${pillStr}'
+override_secs=${overrideSecs}
+debug=${DEBUG_HOOK}
 msgdir=".git/git-poison"
 mkdir -p "$msgdir"
+
+# Debug logger (writes only when debug is truthy)
+logf="$msgdir/hook.log"
+dbg() {
+  # consider 1/true/yes/on as enabled
+  case "\${debug:-0}" in
+    1|true|TRUE|yes|YES|on|ON) ;;
+    *) return 0 ;;
+  esac
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$logf"
+}
+
+dbg "\nSTART hook v${HOOK_VERSION} pill='${pillStr}' override_secs=${overrideSecs}"
 
 # Repo context
 top="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
 author="$(git config user.name 2>/dev/null || echo unknown)"
 email="$(git config user.email 2>/dev/null || echo unknown)"
+dbg "context top='$top' branch='$branch' author='$author' email='$email'"
 
-# Matches in the STAGED index (what will be committed)
-matches_cached=$(git grep -I --cached -l -e "$PILL" -- . || true)
+# Matches in the STAGED index (what will be committed) — fixed string (-F)
+matches_cached=$(git grep -I -F --cached -l -e "$PILL" -- . || true)
+dbg "matches_cached: $(printf '%s' "$matches_cached" | tr '\n' ' ')"
 
 # No staged pills? allow
-[ -z "$matches_cached" ] && exit 0
-
-# Also check WORKING TREE (what's in the editor)
-matches_wc=$(git grep -I -l -e "$PILL" -- . || true)
-
-# Determine if user removed the pill but didn't stage that removal
-only_in_cached=""
-for f in $matches_cached; do
-  echo "$matches_wc" | grep -qx "$f" || only_in_cached="$only_in_cached $f"
-done
-
-# --- Single-line stdout message (avoid inner quotes to prevent truncation) ---
-if [ -n "$only_in_cached" ]; then
-  # Pills exist only in staged version, not working copy
-  printf 'Poison vscode extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".   Hint: You removed the pill but did not stage the change. Stage the updated file(s) or use Commit All and try again.\n' "$PILL"
-else
-  # Pills are also visible in the working copy
-  printf 'Poison vscode extension: The Git commit was cancelled because one or more files contain the poison pill "%s". You can view the pills using the vscode command \"Git Poison: View Next Pill\".\n' "$PILL"
+if [ -z "$matches_cached" ]; then
+  dbg "ALLOW no staged pills found"
+  exit 0
 fi
 
+# --- Override window: allow commit if within override period ---
+override_file=".git/git-poison-override-secs"
+if [ -f "$override_file" ]; then
+  ov_past="$(cat "$override_file" 2>/dev/null || echo)"
+  case "$ov_past" in ''|*[!0-9]*) ov_past='' ;; esac
+  if [ -n "$ov_past" ]; then
+    now="$(date +%s)"
+    dbg "override check: now=$now ov_past=$ov_past override_secs=$override_secs"
+    if [ "$now" -lt $((ov_past + override_secs)) ]; then
+      dbg "ALLOW within override window"
+      exit 0
+    fi
+  else
+    dbg "override file present but non-numeric; ignoring"
+  fi
+else
+  dbg "no override file"
+fi
+
+# List of files with UNSTAGED modifications (diff vs index)
+unstaged_list="$(git diff --name-only 2>/dev/null || true)"
+dbg "unstaged_list: $(printf '%s' "$unstaged_list" | tr '\n' ' ')"
+
+# Working tree pills: scan ONLY files that have unstaged changes (not the whole repo)
+matches_wc=""
+if [ -n "$unstaged_list" ]; then
+  # Avoid xargs -r (not portable); guard on non-empty above
+  matches_wc=$(printf '%s\n' "$unstaged_list" | xargs git grep -I -F -l -e "$PILL" -- 2>/dev/null || true)
+fi
+dbg "matches_wc (only in unstaged files): $(printf '%s' "$matches_wc" | tr '\n' ' ')"
+
+# Determine if user removed the pill but didn't stage that removal:
+# Only consider files that are BOTH (a) in matches_cached and (b) present in unstaged_list;
+# then check that the working copy no longer contains the pill.
+only_in_cached=""
+for f in $matches_cached; do
+  echo "$unstaged_list" | grep -qx "$f" || continue
+  if ! git grep -I -F -q -e "$PILL" -- "$f"; then
+    only_in_cached="$only_in_cached $f"
+  fi
+done
+dbg "only_in_cached (pill only in staged version): $(printf '%s' "$only_in_cached" | tr '\n' ' ')"
+
+# visible_in_wc is true only if SOME unstaged file currently contains the pill
+visible_in_wc=0
+[ -n "$matches_wc" ] && visible_in_wc=1
+dbg "visible_in_wc=$visible_in_wc"
+
+# --- Single-line stdout message (no inner quotes to avoid truncation) ---
+if [ -n "$only_in_cached" ]; then
+  # Pills exist only in staged version for at least one offender (user didn't stage the removal)
+  printf 'Poison vscode extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".   Hint: You removed the pill but did not stage the change. Stage the updated file(s) and try again or use Commit All.\n' "$PILL"
+else
+  if [ "$visible_in_wc" -eq 1 ]; then
+    # There are unstaged files that still contain the pill (user can view them)
+    printf 'Poison vscode extension: The Git commit was cancelled because one or more staged files contain the poison pill "%s". You can view the pills using the vscode command Git Poison: View Next Pill.\n' "$PILL"
+  else
+    # No unstaged files with the pill: keep message focused on staged content only
+    printf 'Poison vscode extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".\n' "$PILL"
+  fi
+fi
+
+dbg "BLOCK commit (message printed to stdout)"
 exit 1
 `;
 
-export async function hookAlreadyInstalled(repoRoot: string): 
+export async function hookAlreadyInstalled(): 
                      Promise<"ours" | "other" | "none" | number> {
   let oldVersion = 0;
   const hookPath = path.join(repoRoot, '.git', 'hooks', 'pre-commit');
@@ -71,8 +144,8 @@ export async function hookAlreadyInstalled(repoRoot: string):
   }
 }
 
-export async function installHook(repoRoot: string, 
-             status: "ours" | "other" | "none" | number): Promise<boolean> {
+export async function installHook(status: "ours" | "other" | "none" | number): 
+                                                              Promise<boolean> {
   try {
     if(typeof status === "number")
       log(`updating hook version ${status} to ${HOOK_VERSION}`);
@@ -88,4 +161,9 @@ export async function installHook(repoRoot: string,
     return false;
   }
   return true;
+}
+
+export function writeOverrideFile() {
+  const overridePath = path.join(repoRoot, '.git', 'git-poison', 'git-poison-override');
+  return fs.writeFile(overridePath, (Date.now()/1000).toString(), 'utf8');
 }

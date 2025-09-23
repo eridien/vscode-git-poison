@@ -14,6 +14,10 @@ export async function activate(context: vscode.ExtensionContext) {
     return;
   }
   const repoRoot = folder.uri.fsPath;
+
+  hook.activate(repoRoot);
+  utils.activate(context);
+
   const gitDir = path.join(repoRoot, '.git');
   log(`Extension activated in workspace folder: ${repoRoot}`);
   try {
@@ -24,7 +28,7 @@ export async function activate(context: vscode.ExtensionContext) {
         'Extension not activated.');
     return;
   }
-  const status = await hook.hookAlreadyInstalled(repoRoot);
+  const status = await hook.hookAlreadyInstalled();
   if (status !== "ours") {
     if (status === "other") {
       const choice = await vscode.window.showWarningMessage(
@@ -38,9 +42,8 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
     }
-    if(!await hook.installHook(repoRoot, status)) return;
+    if(!await hook.installHook(status)) return;
   }
-  utils.activate(context);
 }
 
 export function deactivate() {}
