@@ -13,11 +13,10 @@ export let settings: GitPoisonSettings = {
   poisonPillString: '//❌',
 };
 
-export async function loadSettings() {
+export function loadSettings() {
   const config = vscode.workspace.getConfiguration('git-poison');
   settings = {
     overrideSecs:     config.get('overrideSecs',        300),
     poisonPillString: config.get('poisonPillString', '//❌'),
   };
-  await hook.installHook();
 }

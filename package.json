@@ -65,7 +65,7 @@
           "maximum": 600,
           "order": 1,
           "title": "Override Blocking Timeout (Seconds)",
-          "description": "Number of seconds that the override blocking command can be used. After this time, the commit blocking will be re-enabled."
+          "description": "Number of seconds after the override blocking command is executed that blocking will be disabled. After this time, the blocking will be re-enabled."
         },
         "git-poison.poisonPillString": {
           "type": "string",

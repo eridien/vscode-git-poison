@@ -19,7 +19,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const repoRootUri = folder.uri;
   cmds .activate(repoRootUri);
   hook .activate(repoRootUri);
-  await settings.loadSettings();
+  settings.loadSettings();
   utils.activate(context);
 
   const gitDirUri = vscode.Uri.joinPath(repoRootUri, '.git');
@@ -75,7 +75,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const loadSettings = vscode.workspace.onDidChangeConfiguration(async event => {
     if (event.affectsConfiguration('git-poison')) {
-      await settings.loadSettings();
+      settings.loadSettings();
+      await hook.installHook();
     }
   });
 

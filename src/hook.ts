@@ -145,7 +145,7 @@ export async function hookAlreadyInstalled():
       return "other";
     }
   } catch (err: any) {
-    if (err.code === 'ENOENT') return "none";
+    if (err.code === 'ENOENT' || err.code === 'FileNotFound') return "none";
     throw err;
   }
 }
@@ -192,7 +192,8 @@ export async function installHook(status: "ours" | "other" | "none" | number
     if (hookPathUri.scheme === 'file' || vscode.env.remoteName) {
       try {
         await fs.chmod(hookPathUri.fsPath, 0o755);
-      } catch {
+      } 
+      catch {
         // Some virtual FS providers may not support chmod; ignore.
       }
     }
