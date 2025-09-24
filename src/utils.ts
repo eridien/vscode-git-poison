@@ -49,7 +49,7 @@ export function getLog(module: string) : {
     let infoFlag   = false;
     let nomodFlag  = false;
 
-    if (typeof args[0] === 'string') {
+    if (args[0]?.[0] === ';' && typeof args[0] === 'string') {
       errFlag = args[0].includes('err');
       infoFlag = args[0].includes('info');
       nomodFlag = args[0].includes('nomod');

@@ -1,12 +1,14 @@
-import * as vscode from 'vscode';
-import * as fs     from 'fs/promises';
-import * as path   from 'path';
-import * as hook   from './hook';
-import * as cmds   from './commands';
-import * as utils  from './utils';
+import * as vscode   from 'vscode';
+import * as fs       from 'fs/promises';
+import * as path     from 'path';
+import * as cmds     from './commands';
+import * as hook     from './hook';
+import * as settings from './settings';
+import * as utils    from './utils';
 const {log, start, end} = utils.getLog('extn');
 
 export async function activate(context: vscode.ExtensionContext) {
+  start('activate');
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     log('err', 
@@ -16,11 +18,12 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   const repoRoot = folder.uri.fsPath;
 
-  hook.activate(repoRoot);
+  cmds.activate(repoRoot);
   utils.activate(context);
+  hook.activate(repoRoot);
+  settings.loadSettings();
 
   const gitDir = path.join(repoRoot, '.git');
-  log(`Extension activated in workspace folder: ${repoRoot}`);
   try {
     await fs.access(gitDir);
   } catch {
@@ -44,34 +47,42 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }
     if(!await hook.installHook(status)) return;
-
-    const viewPreviousPill = vscode.commands.registerCommand(
-      'vscode-git.poison.viewPreviousPill', async () => {
-          await cmds.viewPreviousPill();
-      }
-    );
-    
-    const viewNextPill = vscode.commands.registerCommand(
-      'vscode-git.poison.viewNextPill', async () => {
-          await cmds.viewNextPill();
-      }
-    );
-    
-    const overrideCommitBlocking = vscode.commands.registerCommand(
-      'vscode-git.poison.overrideCommitBlocking', async () => {
-          await cmds.overrideCommitBlocking();
-      }
-    );
-    
-    const insertPill = vscode.commands.registerCommand(
-      'vscode-git.poison.insertPill', async () => {
-          await cmds.insertPill();
-      }
-    );
-    
-    context.subscriptions.push(viewPreviousPill, viewNextPill, 
-                               overrideCommitBlocking, insertPill);
   }
+
+  const viewPreviousPill = vscode.commands.registerCommand(
+    'vscode-git-poison.viewPreviousPill', () => {
+       cmds.viewPreviousPill();
+    }
+  );
+  
+  const viewNextPill = vscode.commands.registerCommand(
+    'vscode-git-poison.viewNextPill', () => {
+       cmds.viewNextPill();
+    }
+  );
+  
+  const overrideCommitBlocking = vscode.commands.registerCommand(
+    'vscode-git-poison.overrideCommitBlocking', async () => {
+       await cmds.overrideCommitBlocking();
+    }
+  );
+  
+  const insertPill = vscode.commands.registerCommand(
+    'vscode-git-poison.insertPill', () => {
+       cmds.insertPill();
+    }
+  );
+
+  const loadSettings = vscode.workspace.onDidChangeConfiguration(event => {
+    if (event.affectsConfiguration('git-poison')) {
+      settings.loadSettings();
+    }
+  });
+
+  context.subscriptions.push(viewPreviousPill, viewNextPill,
+                             overrideCommitBlocking, insertPill, loadSettings);
+
+  end('activate');
 }
 
 export function deactivate() {}

@@ -22,40 +22,60 @@
   "contributes": {
     "commands": [
       {
-        "command": "gitPoison.viewPreviousPill",
+        "command": "vscode-git-poison.viewPreviousPill",
         "title": "Git Poison: Jump To Previous Poison Pill"
       },
       {
-        "command": "gitPoison.viewNextPill",
+        "command": "vscode-git-poison.viewNextPill",
         "title": "Git Poison: Jump To Next Poison Pill"
       },
       {
-        "command": "gitPoison.overrideCommitBlocking",
+        "command": "vscode-git-poison.overrideCommitBlocking",
         "title": "Git Poison: Override Commit Blocking"
       },
       {
-        "command": "gitPoison.insertPill",
+        "command": "vscode-git-poison.insertPill",
         "title": "Git Poison: Insert Poison Pill"
       }
     ],
     "keybindings": [
       {
-        "command": "gitPoison.viewPreviousPill",
+        "command": "vscode-git-poison.viewPreviousPill",
         "key": "ctrl-alt-9"
       },
       {
-        "command": "gitPoison.viewNextPill",
+        "command": "vscode-git-poison.viewNextPill",
         "key": "ctrl-alt-0"
       },
       {
-        "command": "gitPoison.overrideCommitBlocking",
+        "command": "vscode-git-poison.overrideCommitBlocking",
         "key": "ctrl-alt--"
       },
       {
-        "command": "gitPoison.insertPill",
+        "command": "vscode-git-poison.insertPill",
         "key": "ctrl-alt-="
       }
-    ]
+    ],
+    "configuration": {
+      "properties": {
+        "git-poison.overrideSecs": {
+          "type": "number",
+          "default":  30,
+          "minimum":   5,
+          "maximum": 600,
+          "order": 1,
+          "title": "Override Command Blocking Timeout (Seconds)",
+          "description": "Number of seconds that the override blocking command can be used. After this time, the commit blocking will be re-enabled."
+        },
+        "git-poison.poisonPillString": {
+          "type": "string",
+          "default": "//❌",
+          "order": 2,
+          "title": "Poison Pill String",
+          "description": "The string used to indicate a poison pill in the code. This will be inserted by the InsertPill command and used to detect a pill. Warning: If you don't remove old pills before changing this setting, you may accidentally commit them."
+        }
+      }
+    }
   },
   "scripts": {
     "build": "npm run compile",
