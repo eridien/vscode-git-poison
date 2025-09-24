@@ -13,6 +13,11 @@ export class PillIndexer {
   public readonly onCountsChanged = this._onCountsChanged.event;
 
   // ---------- PUBLIC ----------
+
+  /**
+   * Full scan across the workspace (ripgrep). Kept for manual invocation,
+   * but NOT called at activation anymore (lazy startup).
+   */
   async fullScan() {
     this.filesWithPills.clear();
     this.occsByFile.clear();
@@ -29,6 +34,10 @@ export class PillIndexer {
     this.emitCounts();
   }
 
+  /**
+   * Incremental refresh using Git (changed + staged + untracked).
+   * This is cheap and is used both after startup and on-demand.
+   */
   async incrementalRefresh() {
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (!folders.length) return;
@@ -42,6 +51,36 @@ export class PillIndexer {
     this.emitCounts();
   }
 
+  /**
+   * Lazy warming for startup & first use:
+   * - index the current editor (if any),
+   * - index all visible editors,
+   * - do a cheap incremental refresh via Git.
+   * Avoids a full tree scan unless explicitly requested.
+   */
+  async lazyWarm(contextEditor?: vscode.TextEditor) {
+    if (contextEditor?.document?.uri?.scheme === 'file') {
+      this.updateFromDoc(contextEditor.document);
+    }
+    await this.warmOpenEditors();
+    await this.incrementalRefresh();
+  }
+
+  /**
+   * Scan all currently visible text editors (fast, in-memory).
+   */
+  async warmOpenEditors() {
+    const editors = vscode.window.visibleTextEditors;
+    for (const ed of editors) {
+      if (ed.document.uri.scheme !== 'file') continue;
+      this.updateFromDoc(ed.document);
+    }
+    this.emitCounts();
+  }
+
+  /**
+   * Watchers to keep the cache fresh going forward.
+   */
   activateWatchers() {
     vscode.workspace.onDidChangeTextDocument(ev => {
       if (ev.document.uri.scheme !== 'file') return;
@@ -84,7 +123,15 @@ export class PillIndexer {
     );
   }
 
+  /**
+   * Whether we’ve indexed anything yet (helps decide if we should lazily warm).
+   */
+  hasAnyIndex(): boolean {
+    return this.filesWithPills.size > 0 || this.occsByFile.size > 0;
+  }
+
   // ---------- INTERNAL ----------
+
   private async scanFolderForPills(folder: vscode.WorkspaceFolder) {
     const pill = getPill();
     const include = new vscode.RelativePattern(folder, '**/*');

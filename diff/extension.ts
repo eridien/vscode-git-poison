@@ -23,15 +23,28 @@ export async function activate(ctx: vscode.ExtensionContext) {
     vscode.commands.registerCommand('gitPoison.pills.jumpPrev', () => jump(indexer, 'prev')),
   );
 
-  // startup: catch external edits while VS Code was closed
-  await indexer.fullScan();
+  // LAZY STARTUP:
+  // - No fullScan() here.
+  // - Start watchers and lightly warm from visible editors + cheap git diffs.
   indexer.activateWatchers();
+  await indexer.lazyWarm(vscode.window.activeTextEditor);
 }
 
 export function deactivate() {}
 
 async function jump(indexer: PillIndexer, dir: 'next' | 'prev') {
-  const all = indexer.getAllOccurrences();
+  // If we have no index yet (first use), lazily warm before attempting a jump.
+  if (!indexer.hasAnyIndex()) {
+    await indexer.lazyWarm(vscode.window.activeTextEditor);
+  }
+
+  let all = indexer.getAllOccurrences();
+  if (!all.length) {
+    // Still nothing found — offer a one-shot full scan (user pressed jump expecting results).
+    await indexer.fullScan();
+    all = indexer.getAllOccurrences();
+  }
+
   if (!all.length) {
     vscode.window.showInformationMessage('No pills found.');
     return;
