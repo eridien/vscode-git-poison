@@ -1,0 +1,40 @@
+{
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "gitPoison.pill": {
+          "type": "string",
+          "default": "//❌",
+          "description": "Literal marker string to detect as a pill."
+        },
+        "gitPoison.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a status bar item with pill counts."
+        },
+        "gitPoison.excludeGlobs": {
+          "type": "string",
+          "default": "**/{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}/**",
+          "description": "Glob patterns to exclude from scanning (comma not supported; use brace expansion)."
+        }
+      }
+    },
+    "commands": [
+      { "command": "gitPoison.pills.rescanFull", "title": "Pills: Full Rescan" },
+      { "command": "gitPoison.pills.rescanIncremental", "title": "Pills: Incremental Refresh" },
+      { "command": "gitPoison.pills.jumpNext", "title": "Pills: Jump Next" },
+      { "command": "gitPoison.pills.jumpPrev", "title": "Pills: Jump Prev" }
+    ],
+    "keybindings": [
+      { "command": "gitPoison.pills.jumpNext", "key": "alt+]", "when": "editorTextFocus" },
+      { "command": "gitPoison.pills.jumpPrev", "key": "alt+[", "when": "editorTextFocus" }
+    ]
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:gitPoison.pills.rescanFull",
+    "onCommand:gitPoison.pills.rescanIncremental",
+    "onCommand:gitPoison.pills.jumpNext",
+    "onCommand:gitPoison.pills.jumpPrev"
+  ]
+}

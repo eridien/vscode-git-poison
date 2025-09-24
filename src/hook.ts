@@ -4,7 +4,7 @@ import {settings} from './settings';
 import * as utils from './utils';
 const {log, start, end} = utils.getLog('hook');
 
-const HOOK_VERSION = 2;
+const HOOK_VERSION = 1;
 const DEBUG_HOOK = false; 
 
 let repoRootUri: vscode.Uri;
@@ -52,8 +52,14 @@ author="$(git config user.name 2>/dev/null || echo unknown)"
 email="$(git config user.email 2>/dev/null || echo unknown)"
 dbg "context top='$top' branch='$branch' author='$author' email='$email'"
 
-# Matches in the STAGED index (what will be committed) — fixed string (-F)
-matches_cached=$(git grep -I -F --cached -l -e "$PILL" -- . || true)
+# Matches in files staged for THIS commit (diff between HEAD and index)
+staged_paths="$(git diff --cached --name-only 2>/dev/null || true)"
+
+matches_cached=""
+if [ -n "$staged_paths" ]; then
+  matches_cached=$(printf '%s\n' "$staged_paths" | xargs git grep -I -F -l -e "$PILL" -- 2>/dev/null || true)
+fi
+
 dbg "matches_cached: $(printf '%s' "$matches_cached" | tr '\n' ' ')"
 
 # No staged pills? allow

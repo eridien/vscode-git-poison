@@ -2,6 +2,7 @@
 
 todo ...
   clean out old req/resp files
+  ignore folders listed in settings
 
 test ...
   check commit of all four possible staged/unstaged states

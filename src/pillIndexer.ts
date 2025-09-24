@@ -1,0 +1,157 @@
+import * as vscode from 'vscode';
+import { getExcludeGlobs, getPill } from './config';
+import { gitChangedPaths } from './gitHelpers';
+import { Occ } from './navigation';
+
+export class PillIndexer {
+  private filesWithPills = new Set<string>();           // fsPath
+  private occsByFile = new Map<string, Occ[]>();        // fsPath -> occurrences
+  private debounceTimer?: NodeJS.Timeout;
+
+  // Events for UI (e.g., status bar)
+  private _onCountsChanged = new vscode.EventEmitter<{ files: number; occs: number }>();
+  public readonly onCountsChanged = this._onCountsChanged.event;
+
+  // ---------- PUBLIC ----------
+  async fullScan() {
+    this.filesWithPills.clear();
+    this.occsByFile.clear();
+
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (!folders.length) return;
+
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: 'Scanning for pills…' },
+      async () => {
+        await Promise.all(folders.map(f => this.scanFolderForPills(f)));
+      }
+    );
+    this.emitCounts();
+  }
+
+  async incrementalRefresh() {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (!folders.length) return;
+    const paths = new Set<string>();
+
+    for (const folder of folders) {
+      const changed = await gitChangedPaths(folder);
+      changed.forEach(rel => paths.add(vscode.Uri.joinPath(folder.uri, rel).fsPath));
+    }
+    await this.rescanMany([...paths]);
+    this.emitCounts();
+  }
+
+  activateWatchers() {
+    vscode.workspace.onDidChangeTextDocument(ev => {
+      if (ev.document.uri.scheme !== 'file') return;
+      this.updateFromDoc(ev.document);
+      this.emitCounts();
+    });
+    vscode.workspace.onDidSaveTextDocument(doc => {
+      if (doc.uri.scheme !== 'file') return;
+      this.updateFromDoc(doc);
+      this.emitCounts();
+    });
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, false, false);
+    watcher.onDidCreate(uri => this.rescanOne(uri.fsPath).then(() => this.emitCounts()));
+    watcher.onDidChange(uri => this.rescanOne(uri.fsPath).then(() => this.emitCounts()));
+    watcher.onDidDelete(uri => {
+      this.filesWithPills.delete(uri.fsPath);
+      this.occsByFile.delete(uri.fsPath);
+      this.emitCounts();
+    });
+  }
+
+  getAllOccurrences(): Occ[] {
+    const entries: Occ[] = [];
+    for (const occs of this.occsByFile.values()) entries.push(...occs);
+    entries.sort((a, b) =>
+      a.uri.fsPath === b.uri.fsPath
+        ? (a.pos.line - b.pos.line) || (a.pos.character - b.pos.character)
+        : a.uri.fsPath.localeCompare(b.uri.fsPath)
+    );
+    return entries;
+  }
+
+  getFilesWithPills(): string[] { return [...this.filesWithPills]; }
+
+  // NEW: return occurrences for a specific file, sorted by position
+  getOccurrencesForUri(uri: vscode.Uri): Occ[] {
+    const arr = this.occsByFile.get(uri.fsPath) ?? [];
+    return arr.slice().sort((a, b) =>
+      (a.pos.line - b.pos.line) || (a.pos.character - b.pos.character)
+    );
+  }
+
+  // ---------- INTERNAL ----------
+  private async scanFolderForPills(folder: vscode.WorkspaceFolder) {
+    const pill = getPill();
+    const include = new vscode.RelativePattern(folder, '**/*');
+    const exclude = getExcludeGlobs();
+
+    const tasks: Promise<void>[] = [];
+    await new Promise<void>(resolve => {
+      const disposable = vscode.workspace.findTextInFiles(
+        { pattern: pill, isRegExp: false, isCaseSensitive: true },
+        { include, useIgnoreFiles: true, exclude },
+        result => {
+          const { uri, ranges } = result;
+          if (uri.scheme !== 'file') return;
+          tasks.push(this.indexDocumentHits(uri, ranges));
+        }
+      );
+      setTimeout(() => { disposable.dispose(); resolve(); }, 0);
+    });
+    await Promise.all(tasks);
+  }
+
+  private async rescanMany(paths: string[]) {
+    if (!paths.length) return;
+    clearTimeout(this.debounceTimer as any);
+    await new Promise<void>(resolve => {
+      this.debounceTimer = setTimeout(async () => {
+        await Promise.all(paths.map(p => this.rescanOne(p)));
+        resolve();
+      }, 60);
+    });
+  }
+
+  private async rescanOne(fsPath: string) {
+    const uri = vscode.Uri.file(fsPath);
+    try {
+      const doc = await vscode.workspace.openTextDocument(uri);
+      this.updateFromDoc(doc);
+    } catch { /* ignore */ }
+  }
+
+  private updateFromDoc(doc: vscode.TextDocument) {
+    const pill = getPill();
+    const text = doc.getText();
+    const occs: Occ[] = [];
+    let idx = 0;
+    while (true) {
+      idx = text.indexOf(pill, idx);
+      if (idx === -1) break;
+      const pos = doc.positionAt(idx);
+      occs.push({ uri: doc.uri, pos });
+      idx += pill.length || 1;
+    }
+    this.occsByFile.set(doc.uri.fsPath, occs);
+    if (occs.length) this.filesWithPills.add(doc.uri.fsPath);
+    else this.filesWithPills.delete(doc.uri.fsPath);
+  }
+
+  private async indexDocumentHits(uri: vscode.Uri, ranges: readonly vscode.Range[]) {
+    const occs: Occ[] = ranges.map(r => ({ uri, pos: r.start }));
+    this.occsByFile.set(uri.fsPath, occs);
+    if (occs.length) this.filesWithPills.add(uri.fsPath);
+    else this.filesWithPills.delete(uri.fsPath);
+  }
+
+  private emitCounts() {
+    let occs = 0;
+    for (const v of this.occsByFile.values()) occs += v.length;
+    this._onCountsChanged.fire({ files: this.filesWithPills.size, occs });
+  }
+}
