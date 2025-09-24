@@ -1,15 +1,22 @@
+import * as vscode from 'vscode';
 import * as fs    from 'fs/promises';
-import * as path  from 'path';
 import {settings} from './settings';
 import * as utils from './utils';
 const {log, start, end} = utils.getLog('hook');
 
-const HOOK_VERSION = 23;
+const HOOK_VERSION = 2;
 const DEBUG_HOOK = false; 
 
-let repoRoot = '';
-export function activate(repoRootIn: string) {
-  repoRoot = repoRootIn;
+let repoRootUri: vscode.Uri;
+let hooksDirUri: vscode.Uri;
+let hookPathUri: vscode.Uri;
+let hookPath:    string;
+
+export function activate(repoRootUriIn: vscode.Uri) {
+  repoRootUri = repoRootUriIn;
+  hooksDirUri = vscode.Uri.joinPath(repoRootUri, '.git', 'hooks');
+  hookPathUri = vscode.Uri.joinPath(hooksDirUri, 'pre-commit');
+  hookPath    = hookPathUri.fsPath;
 }
 
 function getScript() {
@@ -56,7 +63,7 @@ if [ -z "$matches_cached" ]; then
 fi
 
 # --- Override window: allow commit if within override period ---
-override_file=".git/git-poison/override-secs"
+override_file=".git/git-poison/override-start"
 if [ -f "$override_file" ]; then
   ov_raw="$(cat "$override_file" 2>/dev/null || echo)"
   # trim whitespace/newlines; keep only digits
@@ -109,26 +116,26 @@ dbg "visible_in_wc=$visible_in_wc"
 
 # --- Single-line stdout message (no inner quotes to avoid truncation) ---
 if [ -n "$only_in_cached" ]; then
-  printf 'Poison VS Code extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".   Hint: You removed the pill but did not stage the change. Stage the updated file(s) and try again or use Commit All.\n' "$PILL"
+  printf 'Poison VS Code extension: The Git commit was cancelled because one or more staged files contain the poison pill "%s".   Hint: You removed the pills but did not stage the change. Stage the updated file(s) and try again or use Commit All.\n' "$PILL"
 else
   if [ "$visible_in_wc" -eq 1 ]; then
-    printf 'Poison VS Code extension: The Git commit was cancelled because one or more staged files contain the poison pill "%s". You can view the pills using the vscode command Git Poison: View Next Pill.\n' "$PILL"
+    printf 'Poison VS Code extension: The Git commit was cancelled because staged and un-staged files contain the poison pill "%s". Unstage files and then view the pills using the vscode command "Git Poison: View Next Pill".\n' "$PILL"
   else
-    printf 'Poison VS Code extension: The Git commit was cancelled because one or more staged files contain a poison pill "%s".\n' "$PILL"
+    printf 'Poison VS Code extension: The Git commit was cancelled because one or more staged files contain the poison pill "%s".\n' "$PILL"
   fi
 fi
 
 dbg "BLOCK commit (message printed to stdout)"
 exit 1
 
-`.replace(/\r\n/g, '\n');}
+`;}
 
 export async function hookAlreadyInstalled(): 
                      Promise<"ours" | "other" | "none" | number> {
   let oldVersion = 0;
-  const hookPath = path.join(repoRoot, '.git', 'hooks', 'pre-commit');
   try {
-    const content = await fs.readFile(hookPath, 'utf8');
+    const data    = await vscode.workspace.fs.readFile(hookPathUri);
+    const content = Buffer.from(data).toString('utf8');
     if (content.includes('Git Poison')) {
       const match = content.match(/# VERSION (\d+)/);
       if(match) oldVersion = Number(match[1]);
@@ -143,26 +150,61 @@ export async function hookAlreadyInstalled():
   }
 }
 
-export async function installHook(status: "ours" | "other" | "none" | number): 
-                                                              Promise<boolean> {
-  try {
-    if(typeof status === "number")
-      log(`updating hook version ${status} to ${HOOK_VERSION}`);
-    const hooksDir = path.join(repoRoot, '.git', 'hooks');
-    await fs.mkdir(hooksDir, { recursive: true });
-    const hookPath = path.join(hooksDir, 'pre-commit');
-    await fs.writeFile(hookPath, getScript(), { mode: 0o755 });
-    if (process.platform !== 'win32') await fs.chmod(hookPath, 0o755);
-    log('pre-commit hook installed');
-  } catch (e: any) {
-    log('infoerr', 'Git Poison: Extension not activated. ' +
-                   'Failed to install Git hook: ' + (e?.message ?? e));
-    return false;
-  }
-  return true;
+// helper: detect Windows host writing to a WSL repo via UNC
+function isWindowsUNCWSL(uri: vscode.Uri): boolean {
+  return process.platform === 'win32'
+    && uri.scheme === 'file'
+    && /^\\\\wsl\.localhost\\/.test(uri.fsPath);
 }
 
-export function writeOverrideFile() {
-  const overridePath = path.join(repoRoot, '.git', 'git-poison', 'git-poison-override');
-  return fs.writeFile(overridePath, (Date.now()/1000).toString(), 'utf8');
+export async function installHook(status: "ours" | "other" | "none" | number
+                                  = HOOK_VERSION): Promise<boolean> {
+  try {
+    // Bad setup: local Windows extension host targeting \\wsl.localhost\...
+    if (isWindowsUNCWSL(repoRootUri) && vscode.env.remoteName !== 'wsl') {
+      const choice = await vscode.window.showErrorMessage(
+        'Git Poison: This folder is opened via Windows UNC path to a WSL filesystem. ' +
+        'This is not supported and this extension ' +
+        'will not load unless you reopen this folder in WSL.',
+        'Reopen this window in WSL'
+      );
+      if (choice === 'Reopen this window in WSL') {
+        await vscode.commands.executeCommand('remote-wsl.reopenFolderInWSL');
+      }
+      log(';infoerr', 'Extension not activated: workspace opened via Windows UNC to WSL.');
+      return false;
+    }
+
+    if (typeof status === 'number' && status !== HOOK_VERSION) {
+      log(`updating hook version ${status} to ${HOOK_VERSION}`);
+    }
+
+    // Ensure .git/hooks exists (works local & remote)
+    await vscode.workspace.fs.createDirectory(hooksDirUri);
+
+    // Write script bytes (normalize to LF to avoid /bin/sh^M)
+    const script = getScript().replace(/\r\n/g, '\n');
+    await vscode.workspace.fs.writeFile(hookPathUri, Buffer.from(script, 'utf8'));
+
+    // Ensure exec bit when possible:
+    // - Remote-WSL / SSH / Dev Container: extension host is POSIX → chmod works.
+    // - Local Windows to local FS: chmod works (has no effect on exec on NTFS, but harmless).
+    if (hookPathUri.scheme === 'file' || vscode.env.remoteName) {
+      try {
+        await fs.chmod(hookPathUri.fsPath, 0o755);
+      } catch {
+        // Some virtual FS providers may not support chmod; ignore.
+      }
+    }
+
+    log(`pre-commit hook V${HOOK_VERSION} installed`);
+    return true;
+
+  } catch (e: any) {
+    log(
+      ';infoerr',
+      'Git Poison: Extension not activated. Failed to install Git hook: ' + (e?.message ?? e)
+    );
+    return false;
+  }
 }

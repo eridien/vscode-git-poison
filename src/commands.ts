@@ -1,16 +1,13 @@
 import * as vscode from 'vscode';
-import {settings}  from './settings';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('cmds');
 
-let repoRootUri:     vscode.Uri;
-let poisonDirUri:    vscode.Uri;
+let poisonDirUri:     vscode.Uri;
 let overrideStartUri: vscode.Uri;
 
-export function activate(repoRoot: string) {
-  repoRootUri     = vscode.Uri.file(repoRoot);
-  poisonDirUri    = vscode.Uri.joinPath(repoRootUri, '.git', 'git-poison');
-  overrideStartUri = vscode.Uri.joinPath(poisonDirUri, 'override-secs');
+export function activate(repoRootUri: vscode.Uri) {
+  poisonDirUri     = vscode.Uri.joinPath(repoRootUri, '.git', 'git-poison');
+  overrideStartUri = vscode.Uri.joinPath(poisonDirUri, 'override-start');
 }
 
 export  function viewPreviousPill() {

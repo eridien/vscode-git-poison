@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as hook   from './hook';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('settings');
 
@@ -12,10 +13,11 @@ export let settings: GitPoisonSettings = {
   poisonPillString: '//❌',
 };
 
-export function loadSettings() {
+export async function loadSettings() {
   const config = vscode.workspace.getConfiguration('git-poison');
   settings = {
     overrideSecs:     config.get('overrideSecs',        300),
     poisonPillString: config.get('poisonPillString', '//❌'),
   };
+  await hook.installHook();
 }

@@ -11,23 +11,23 @@ export async function activate(context: vscode.ExtensionContext) {
   start('activate');
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
-    log('err', 
+    log(';err', 
         'Git Poison: You must have a workspace folder open to install. ' +
         'Extension not activated.');
     return;
   }
-  const repoRoot = folder.uri.fsPath;
-
-  cmds.activate(repoRoot);
+  const repoRootUri = folder.uri;
+  cmds .activate(repoRootUri);
+  hook .activate(repoRootUri);
+  await settings.loadSettings();
   utils.activate(context);
-  hook.activate(repoRoot);
-  settings.loadSettings();
 
-  const gitDir = path.join(repoRoot, '.git');
+  const gitDirUri = vscode.Uri.joinPath(repoRootUri, '.git');
   try {
-    await fs.access(gitDir);
-  } catch {
-    log('err', 
+    await vscode.workspace.fs.stat(gitDirUri);
+  } 
+  catch {
+    log(';err',
         'Git Poison: No Git directory found in the first workspace folder. ' +
         'Extension not activated.');
     return;
@@ -41,7 +41,7 @@ export async function activate(context: vscode.ExtensionContext) {
         { modal: true }, "Yes", "No"
       );
       if (choice !== "Yes") {
-        log('info', "Git Poison: Extension not activated " +
+        log(';info', "Git Poison: Extension not activated " +
                     "because the hook installation was cancelled.");
         return;
       }
@@ -73,9 +73,9 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  const loadSettings = vscode.workspace.onDidChangeConfiguration(event => {
+  const loadSettings = vscode.workspace.onDidChangeConfiguration(async event => {
     if (event.affectsConfiguration('git-poison')) {
-      settings.loadSettings();
+      await settings.loadSettings();
     }
   });
 

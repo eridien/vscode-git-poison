@@ -85,7 +85,7 @@ export function getLog(module: string) : {
     outputChannel.appendLine(line);
     if (errFlag) console.error(line);
     else console.log(line);
-    if (infoFlag) log('info', infoLine);
+    if (infoFlag) log(';info', infoLine);
   };
 
   return { log, start, end };

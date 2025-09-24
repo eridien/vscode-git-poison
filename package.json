@@ -64,7 +64,7 @@
           "minimum":   5,
           "maximum": 600,
           "order": 1,
-          "title": "Override Command Blocking Timeout (Seconds)",
+          "title": "Override Blocking Timeout (Seconds)",
           "description": "Number of seconds that the override blocking command can be used. After this time, the commit blocking will be re-enabled."
         },
         "git-poison.poisonPillString": {
@@ -72,7 +72,7 @@
           "default": "//❌",
           "order": 2,
           "title": "Poison Pill String",
-          "description": "The string used to indicate a poison pill in the code. This will be inserted by the InsertPill command and used to detect a pill. Warning: If you don't remove old pills before changing this setting, you may accidentally commit them."
+          "description": "The string used to indicate a poison pill in the code. This will be inserted by the \"Insert Pill\" command and be used to detect pills. Warning: If you don't remove old pills before changing this setting, you may accidentally commit them."
         }
       }
     }
