@@ -3,9 +3,10 @@ import * as path   from 'path';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('hook');
 
-const HOOK_VERSION = 0;
-const DEBUG_HOOK = true; 
+const HOOK_VERSION = 23;
+const DEBUG_HOOK = false; 
 
+// configurable settings
 let pillStr = '//❌';
 let overrideSecs = 30;
 

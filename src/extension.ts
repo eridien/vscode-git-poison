@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs/promises';
 import * as path   from 'path';
 import * as hook   from './hook';
+import * as cmds   from './commands';
 import * as utils  from './utils';
 const {log, start, end} = utils.getLog('extn');
 
@@ -43,6 +44,33 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }
     if(!await hook.installHook(status)) return;
+
+    const viewPreviousPill = vscode.commands.registerCommand(
+      'vscode-git.poison.viewPreviousPill', async () => {
+          await cmds.viewPreviousPill();
+      }
+    );
+    
+    const viewNextPill = vscode.commands.registerCommand(
+      'vscode-git.poison.viewNextPill', async () => {
+          await cmds.viewNextPill();
+      }
+    );
+    
+    const overrideCommitBlocking = vscode.commands.registerCommand(
+      'vscode-git.poison.overrideCommitBlocking', async () => {
+          await cmds.overrideCommitBlocking();
+      }
+    );
+    
+    const insertPill = vscode.commands.registerCommand(
+      'vscode-git.poison.insertPill', async () => {
+          await cmds.insertPill();
+      }
+    );
+    
+    context.subscriptions.push(viewPreviousPill, viewNextPill, 
+                               overrideCommitBlocking, insertPill);
   }
 }
 

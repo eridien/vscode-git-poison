@@ -41,13 +41,19 @@
     "keybindings": [
       {
         "command": "gitPoison.viewPreviousPill",
-        "key": "alt+up",
-        "when": "editorTextFocus"
+        "key": "ctrl-alt-9"
       },
       {
         "command": "gitPoison.viewNextPill",
-        "key": "alt+down",
-        "when": "editorTextFocus"
+        "key": "ctrl-alt-0"
+      },
+      {
+        "command": "gitPoison.overrideCommitBlocking",
+        "key": "ctrl-alt--"
+      },
+      {
+        "command": "gitPoison.insertPill",
+        "key": "ctrl-alt-="
       }
     ]
   },
