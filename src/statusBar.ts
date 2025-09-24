@@ -14,7 +14,7 @@ export class PillStatusBar {
 
   update(countFiles: number, countOccs: number) {
     if (!this.item) return;
-    this.item.text = `$(warning) Pills: ${countOccs} in ${countFiles}`;
+    this.item.text = `$(stop-circle) Pills: ${countOccs} in ${countFiles}`;
   }
 
   dispose() { this.item?.dispose(); }
