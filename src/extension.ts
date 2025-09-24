@@ -15,14 +15,56 @@ let lastJumpOcc: { uri: vscode.Uri; pos: vscode.Position } | undefined;
 export async function activate(context: vscode.ExtensionContext) {
   start('activate');
   const indexer = new PillIndexer();
-  const status  = new PillStatusBar(getShowStatusBar());
-  const dispose = { dispose: () => status.dispose() };
+  
+  // Create status bar that can be dynamically shown/hidden
+  let status: PillStatusBar | undefined;
+  
+  // Function to update status bar based on config
+  const updateStatusBar = () => {
+    const shouldShow = getShowStatusBar();
+    if (shouldShow && !status) {
+      // Create status bar when it should be shown but doesn't exist
+      status = new PillStatusBar(true);
+      // Update it with current counts
+      const all = indexer.getAllOccurrences();
+      const fileCount = indexer.getFilesWithPills().length;
+      status.update(fileCount, all.length);
+    } else if (!shouldShow && status) {
+      // Dispose status bar when it should be hidden
+      status.dispose();
+      status = undefined;
+    }
+  };
+
+  // Update status bar when counts change (only if it exists)
+  indexer.onCountsChanged(({ files, occs }) => {
+    if (status) {
+      status.update(files, occs);
+    }
+  });
+  
+  // LAZY STARTUP:
+  indexer.activateWatchers();
+  await indexer.lazyWarm(vscode.window.activeTextEditor);
+  
+  // Initialize status bar based on current config AFTER lazy warming  
+  updateStatusBar();
+  
+  // Listen for configuration changes
+  const configWatcher = vscode.workspace.onDidChangeConfiguration(e => {
+    if (e.affectsConfiguration('git-poison.showStatusBar')) {
+      updateStatusBar();
+    }
+  });
 
   // LAZY STARTUP:
   // - No fullScan() here.
   // - Start watchers and lightly warm from visible editors + cheap git diffs.
   indexer.activateWatchers();
   await indexer.lazyWarm(vscode.window.activeTextEditor);
+
+  // Initialize status bar based on current config AFTER lazy warming
+  updateStatusBar();
 
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
@@ -93,10 +135,23 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // keep status bar updated
-  indexer.onCountsChanged(({ files, occs }) => status.update(files, occs));
+  // Update status bar when counts change (only if it exists)
+  indexer.onCountsChanged(({ files, occs }) => {
+    if (status) {
+      status.update(files, occs);
+    }
+  });
   
-  context.subscriptions.push( dispose, overrideCommitBlocking, insertPill);
+  context.subscriptions.push(
+    configWatcher,
+    { dispose: () => status?.dispose() },
+    overrideCommitBlocking,
+    insertPill,
+    rescanFull,
+    rescanIncremental,
+    jumpNext,
+    jumpPrev
+  );
 
   end('activate');
 }
@@ -187,4 +242,3 @@ function pickGlobalOccurrence(
   // 3) No editor: wrap from ends
   return all[dir === 'next' ? 0 : (all.length - 1)];
 }
-
