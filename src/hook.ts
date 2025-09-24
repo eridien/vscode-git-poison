@@ -36,7 +36,7 @@ dbg() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$logf"
 }
 
-dbg "START hook v${HOOK_VERSION} pill='${poisonPillString}' override_secs=${overrideSecs}"
+dbg "START hook v${HOOK_VERSION} pill='$PILL' override_secs=$override_secs"
 
 # Repo context
 top="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -121,7 +121,7 @@ fi
 dbg "BLOCK commit (message printed to stdout)"
 exit 1
 
-`.replace(/\r\n/g, '\n')};
+`.replace(/\r\n/g, '\n');}
 
 export async function hookAlreadyInstalled(): 
                      Promise<"ours" | "other" | "none" | number> {
