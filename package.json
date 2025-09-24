@@ -22,12 +22,20 @@
   "contributes": {
     "commands": [
       {
-        "command": "vscode-git-poison.viewPreviousPill",
-        "title": "Git Poison: Jump To Previous Poison Pill"
+        "command": "vscode-git-poison.jumpPrev",
+        "title": "Pills: Jump Prev"
       },
       {
-        "command": "vscode-git-poison.viewNextPill",
-        "title": "Git Poison: Jump To Next Poison Pill"
+        "command": "vscode-git-poison.jumpNext",
+        "title": "Pills: Jump Next"
+      },
+      {
+        "command": "vscode-git-poison.rescanFull",
+        "title": "Pills: Full Rescan"
+      },
+      {
+        "command": "vscode-git-poison.rescanIncremental",
+        "title": "Pills: Incremental Refresh"
       },
       {
         "command": "vscode-git-poison.overrideCommitBlocking",
@@ -40,12 +48,14 @@
     ],
     "keybindings": [
       {
-        "command": "vscode-git-poison.viewPreviousPill",
-        "key": "ctrl-alt-9"
+        "command": "vscode-git-poison.jumpNext",
+        "key": "alt+]",
+        "when": "editorTextFocus"
       },
       {
-        "command": "vscode-git-poison.viewNextPill",
-        "key": "ctrl-alt-0"
+        "command": "vscode-git-poison.jumpPrev",
+        "key": "alt+[",
+        "when": "editorTextFocus"
       },
       {
         "command": "vscode-git-poison.overrideCommitBlocking",
@@ -58,21 +68,35 @@
     ],
     "configuration": {
       "properties": {
+        "git-poison.pillString": {
+          "type": "string",
+          "default": "//❌",
+          "order": 1,
+          "title": "Poison Pill String",
+          "description": "The string used to indicate a poison pill in the code. This will be inserted by the \"Insert Pill\" command and be used to detect pills. Warning: If you don't remove old pills before changing this setting, you may accidentally commit them."
+        },
         "git-poison.overrideSecs": {
           "type": "number",
-          "default":  30,
-          "minimum":   5,
+          "default": 30,
+          "minimum": 5,
           "maximum": 600,
-          "order": 1,
+          "order": 2,
           "title": "Override Blocking Timeout (Seconds)",
           "description": "Number of seconds after the override blocking command is executed that blocking will be disabled. After this time, the blocking will be re-enabled."
         },
-        "git-poison.poisonPillString": {
+        "git-poison.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "order": 3,
+          "title": "Show Status Bar",
+          "description": "Show a status bar item with pill counts."
+        },
+        "git-poison.excludeGlobs": {
           "type": "string",
-          "default": "//❌",
-          "order": 2,
-          "title": "Poison Pill String",
-          "description": "The string used to indicate a poison pill in the code. This will be inserted by the \"Insert Pill\" command and be used to detect pills. Warning: If you don't remove old pills before changing this setting, you may accidentally commit them."
+          "default": "**/{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}/**",
+          "order": 4,
+          "title": "Folders/Files to Exclude",
+          "description": "Glob patterns to exclude from scanning (comma not supported; use brace expansion)."
         }
       }
     }
@@ -96,6 +120,7 @@
     "@typescript-eslint/parser": "^8.44.0",
     "esbuild": "^0.23.0",
     "eslint": "^9.36.0",
+    "globals": "^16.4.0",
     "typescript": "^5.9.2"
   }
 }

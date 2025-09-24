@@ -1,14 +1,29 @@
 import * as vscode   from 'vscode';
 import * as fs       from 'fs/promises';
 import * as path     from 'path';
-import * as cmds     from './commands';
+import { PillIndexer } from './pillIndexer';
+import { reveal, findIndexForPosition } from './navigation';
+import { PillStatusBar } from './statusBar';
+import { getShowStatusBar } from './config';
 import * as hook     from './hook';
-import * as settings from './settings';
 import * as utils    from './utils';
 const {log, start, end} = utils.getLog('extn');
 
+// Remember the last global jump so we can continue across tab switches if needed
+let lastJumpOcc: { uri: vscode.Uri; pos: vscode.Position } | undefined;
+
 export async function activate(context: vscode.ExtensionContext) {
   start('activate');
+  const indexer = new PillIndexer();
+  const status  = new PillStatusBar(getShowStatusBar());
+  const dispose = { dispose: () => status.dispose() };
+
+  // LAZY STARTUP:
+  // - No fullScan() here.
+  // - Start watchers and lightly warm from visible editors + cheap git diffs.
+  indexer.activateWatchers();
+  await indexer.lazyWarm(vscode.window.activeTextEditor);
+
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     log(';err', 
@@ -17,11 +32,9 @@ export async function activate(context: vscode.ExtensionContext) {
     return;
   }
   const repoRootUri = folder.uri;
-  cmds .activate(repoRootUri);
-  hook .activate(repoRootUri);
-  settings.loadSettings();
+  hook.activate(repoRootUri);
   utils.activate(context);
-
+  
   const gitDirUri = vscode.Uri.joinPath(repoRootUri, '.git');
   try {
     await vscode.workspace.fs.stat(gitDirUri);
@@ -32,9 +45,9 @@ export async function activate(context: vscode.ExtensionContext) {
         'Extension not activated.');
     return;
   }
-  const status = await hook.hookAlreadyInstalled();
-  if (status !== "ours") {
-    if (status === "other") {
+  const installedStatus = await hook.hookAlreadyInstalled();
+  if (installedStatus !== "ours") {
+    if (installedStatus === "other") {
       const choice = await vscode.window.showWarningMessage(
         "Git Poison: A Git pre-commit hook already exists for another app. " +
         "Overwrite the other one?",
@@ -46,44 +59,132 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
     }
-    if(!await hook.installHook(status)) return;
+    if(!await hook.installHook(installedStatus)) return;
   }
+  const rescanFull =  vscode.commands.registerCommand('vscode-git-poison.rescanFull', () => indexer.fullScan());
 
-  const viewPreviousPill = vscode.commands.registerCommand(
-    'vscode-git-poison.viewPreviousPill', () => {
-       cmds.viewPreviousPill();
-    }
-  );
-  
-  const viewNextPill = vscode.commands.registerCommand(
-    'vscode-git-poison.viewNextPill', () => {
-       cmds.viewNextPill();
-    }
-  );
-  
+  const rescanIncremental = vscode.commands.registerCommand('vscode-git-poison.rescanIncremental', () => indexer.incrementalRefresh());
+
+  const jumpNext = vscode.commands.registerCommand('vscode-git-poison.jumpNext', () => jump(indexer, 'next'));
+  const jumpPrev = vscode.commands.registerCommand('vscode-git-poison.jumpPrev', () => jump(indexer, 'prev'));
+
+  const poisonDirUri     = vscode.Uri.joinPath(repoRootUri, '.git', 'git-poison');
+  const overrideStartUri = vscode.Uri.joinPath(poisonDirUri, 'override-start');
+
   const overrideCommitBlocking = vscode.commands.registerCommand(
-    'vscode-git-poison.overrideCommitBlocking', async () => {
-       await cmds.overrideCommitBlocking();
+   'vscode-git-poison.overrideCommitBlocking', async () => {
+      log('overrideCommitBlocking');
+      try {
+        await vscode.workspace.fs.createDirectory(poisonDirUri);
+        await vscode.workspace.fs.writeFile(overrideStartUri,
+                                Buffer.from(String(Math.floor(Date.now()/1000))));
+      }
+      catch (err: any) {
+        log(`Git Poison: Override Commit Blocking Command failed: ${err.message}`);
+      }
     }
   );
-  
+
   const insertPill = vscode.commands.registerCommand(
     'vscode-git-poison.insertPill', () => {
-       cmds.insertPill();
+
+      // TODO
+
     }
   );
 
-  const loadSettings = vscode.workspace.onDidChangeConfiguration(async event => {
-    if (event.affectsConfiguration('git-poison')) {
-      settings.loadSettings();
-      await hook.installHook();
-    }
-  });
-
-  context.subscriptions.push(viewPreviousPill, viewNextPill,
-                             overrideCommitBlocking, insertPill, loadSettings);
+  // keep status bar updated
+  indexer.onCountsChanged(({ files, occs }) => status.update(files, occs));
+  
+  context.subscriptions.push( dispose, overrideCommitBlocking, insertPill);
 
   end('activate');
 }
 
 export function deactivate() {}
+
+async function jump(indexer: PillIndexer, dir: 'next' | 'prev') {
+  // If we have no index yet (first use), lazily warm before attempting a jump.
+  if (!indexer.hasAnyIndex()) {
+    await indexer.lazyWarm(vscode.window.activeTextEditor);
+  }
+
+  let all = indexer.getAllOccurrences();
+  if (!all.length) {
+    // Still nothing found — offer a one-shot full scan (user pressed jump expecting results).
+    await indexer.fullScan();
+    all = indexer.getAllOccurrences();
+  }
+
+  if (!all.length) {
+    vscode.window.showInformationMessage('No pills found.');
+    return;
+  }
+
+  const ed = vscode.window.activeTextEditor;
+
+  // ---- 1) SMART HEURISTIC: try document-local first ----
+  if (ed) {
+    const caret = ed.selection.active;
+    const locals = indexer.getOccurrencesForUri(ed.document.uri);
+
+    // find first strictly after/before caret in this file
+    const localIdx = findLocalIndex(locals, caret, dir);
+    if (localIdx !== -1) {
+      const occ = locals[localIdx];
+      await reveal(occ);
+      lastJumpOcc = { uri: occ.uri, pos: occ.pos };  // remember globally
+      return;
+    }
+  }
+
+  // ---- 2) FALL BACK TO GLOBAL ----
+  const occ = pickGlobalOccurrence(all, ed, dir);
+  await reveal(occ);
+  lastJumpOcc = { uri: occ.uri, pos: occ.pos };
+}
+
+// Helper: in-file next/prev relative to caret (strictly after/before)
+function findLocalIndex(locals: { uri: vscode.Uri; pos: vscode.Position }[], caret: vscode.Position, dir: 'next' | 'prev'): number {
+  if (!locals.length) return -1;
+  if (dir === 'next') {
+    for (let i = 0; i < locals.length; i++) {
+      const p = locals[i].pos;
+      if (p.line > caret.line || (p.line === caret.line && p.character > caret.character)) return i;
+    }
+    return -1; // none after
+  } 
+  else {
+    for (let i = locals.length - 1; i >= 0; i--) {
+      const p = locals[i].pos;
+      if (p.line < caret.line || (p.line === caret.line && p.character < caret.character)) return i;
+    }
+    return -1; // none before
+  }
+}
+
+// Helper: choose global next/prev from last jump if possible, else from caret/file, else wrap
+function pickGlobalOccurrence(
+  all: { uri: vscode.Uri; pos: vscode.Position }[],
+  ed: vscode.TextEditor | undefined,
+  dir: 'next' | 'prev'
+) {
+  // 1) If we have a remembered occurrence and it still exists, continue from it
+  if (lastJumpOcc) {
+    const idxFromLast = all.findIndex(o => o.uri.fsPath === lastJumpOcc!.uri.fsPath && o.pos.isEqual(lastJumpOcc!.pos));
+    if (idxFromLast >= 0) {
+      const nextIdx = (idxFromLast + (dir === 'next' ? 1 : -1) + all.length) % all.length;
+      return all[nextIdx];
+    }
+  }
+
+  // 2) Otherwise, if there is an active editor, start relative to caret globally
+  if (ed) {
+    const idx = findIndexForPosition(all, ed.document.uri, ed.selection.active, dir);
+    return all[(idx + all.length) % all.length];
+  }
+
+  // 3) No editor: wrap from ends
+  return all[dir === 'next' ? 0 : (all.length - 1)];
+}
+

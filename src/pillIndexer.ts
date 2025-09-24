@@ -4,10 +4,10 @@ import { gitChangedPaths } from './gitHelpers';
 import { Occ } from './navigation';
 
 export class PillIndexer {
-  private filesWithPills = new Set<string>();           // fsPath
-  private occsByFile = new Map<string, Occ[]>();        // fsPath -> occurrences
-  private debounceTimer?: NodeJS.Timeout;
-
+    private filesWithPills = new Set<string>();           // fsPath
+    private occsByFile = new Map<string, Occ[]>();        // fsPath -> occurrences
+    private debounceTimer?: ReturnType<typeof setTimeout>; // This works everywhere
+  
   // Events for UI (e.g., status bar)
   private _onCountsChanged = new vscode.EventEmitter<{ files: number; occs: number }>();
   public readonly onCountsChanged = this._onCountsChanged.event;
@@ -62,14 +62,14 @@ export class PillIndexer {
     if (contextEditor?.document?.uri?.scheme === 'file') {
       this.updateFromDoc(contextEditor.document);
     }
-    await this.warmOpenEditors();
+    this.warmOpenEditors();
     await this.incrementalRefresh();
   }
 
   /**
    * Scan all currently visible text editors (fast, in-memory).
    */
-  async warmOpenEditors() {
+  warmOpenEditors() {
     const editors = vscode.window.visibleTextEditors;
     for (const ed of editors) {
       if (ed.document.uri.scheme !== 'file') continue;
@@ -133,26 +133,29 @@ export class PillIndexer {
   // ---------- INTERNAL ----------
 
   private async scanFolderForPills(folder: vscode.WorkspaceFolder) {
-    const pill = getPill();
     const include = new vscode.RelativePattern(folder, '**/*');
     const exclude = getExcludeGlobs();
-
-    const tasks: Promise<void>[] = [];
-    await new Promise<void>(resolve => {
-      const disposable = vscode.workspace.findTextInFiles(
-        { pattern: pill, isRegExp: false, isCaseSensitive: true },
-        { include, useIgnoreFiles: true, exclude },
-        result => {
-          const { uri, ranges } = result;
-          if (uri.scheme !== 'file') return;
-          tasks.push(this.indexDocumentHits(uri, ranges));
-        }
-      );
-      setTimeout(() => { disposable.dispose(); resolve(); }, 0);
-    });
-    await Promise.all(tasks);
+  
+    // Find all files
+    const files = await vscode.workspace.findFiles(include, exclude);
+    
+    // Process files in batches to avoid overwhelming the system
+    const batchSize = 50;
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize);
+      const tasks = batch.map(uri => this.processFileForPills(uri));
+      await Promise.all(tasks);
+    }
   }
-
+  
+  private async processFileForPills(uri: vscode.Uri): Promise<void> {
+    try {
+      const doc = await vscode.workspace.openTextDocument(uri);
+      this.updateFromDoc(doc);
+    } catch {
+      // Ignore files that can't be opened
+    }
+  }
   private async rescanMany(paths: string[]) {
     if (!paths.length) return;
     clearTimeout(this.debounceTimer as any);
@@ -189,7 +192,7 @@ export class PillIndexer {
     else this.filesWithPills.delete(doc.uri.fsPath);
   }
 
-  private async indexDocumentHits(uri: vscode.Uri, ranges: readonly vscode.Range[]) {
+  private indexDocumentHits(uri: vscode.Uri, ranges: readonly vscode.Range[]) {
     const occs: Occ[] = ranges.map(r => ({ uri, pos: r.start }));
     this.occsByFile.set(uri.fsPath, occs);
     if (occs.length) this.filesWithPills.add(uri.fsPath);

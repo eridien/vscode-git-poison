@@ -1,8 +1,9 @@
 
-
 todo ...
   clean out old req/resp files
   ignore folders listed in settings
+  don't insert in excluded files
+  do insertPill
 
 test ...
   check commit of all four possible staged/unstaged states

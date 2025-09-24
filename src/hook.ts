@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs    from 'fs/promises';
-import {settings} from './settings';
+import { getExcludeGlobs, getPill, getOverrideSecs } from './config';
 import * as utils from './utils';
 const {log, start, end} = utils.getLog('hook');
 
@@ -26,8 +26,8 @@ function getScript() {
 set -eu
 
 # VERSION ${HOOK_VERSION}
-PILL='${settings.poisonPillString}'
-override_secs=${settings.overrideSecs}
+PILL='${getPill()}'
+override_secs=${getOverrideSecs()}
 debug=${DEBUG_HOOK}
 msgdir=".git/git-poison"
 mkdir -p "$msgdir"

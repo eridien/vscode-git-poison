@@ -1,4 +1,5 @@
 const js = require('@eslint/js');
+const globals = require('globals');
 
 /** @type {import('eslint').Linter.FlatConfig[]} */
 module.exports = [
@@ -14,16 +15,7 @@ module.exports = [
         ecmaVersion: 'latest',
       },
       globals: {
-        // Add Node.js globals
-        console: 'readonly',
-        process: 'readonly',
-        Buffer: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
-        global: 'readonly',
-        require: 'readonly',
-        module: 'readonly',
-        exports: 'readonly'
+        ...globals.node,  // This includes all Node.js globals including timers
       }
     },
     plugins: { '@typescript-eslint': require('@typescript-eslint/eslint-plugin') },
