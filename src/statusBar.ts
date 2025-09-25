@@ -5,13 +5,11 @@ import { getShowStatusBar } from './config';
 export class PillStatusBar {
   private item: vscode.StatusBarItem | undefined;
   private scanTimer?: ReturnType<typeof setInterval>;
-  private scanStartTime?: number;
-  private minScanDuration = 300; // Minimum 0.3 seconds of scanning animation
 
   constructor(private enabled: boolean) {
     if (enabled) {
       this.item = vscode.window.createStatusBarItem('gitPoison.pillCount', vscode.StatusBarAlignment.Left, 100);
-      this.item.tooltip = 'Files containing pills';
+      this.item.tooltip = 'Poison Pill Count (click to rescan)';
       this.item.command = 'vscode-git-poison.rescanIncremental';
       this.item.show();
       
@@ -32,8 +30,6 @@ export class PillStatusBar {
 
   showScanning() {
     if (!this.item) return;
-
-    this.scanStartTime = Date.now();
     
     const spinners = ['/', '-', '\\', '|'];
     let i = 0;
@@ -47,26 +43,11 @@ export class PillStatusBar {
   }
 
   showComplete(countFiles: number, countOccs: number) {
-    if (!this.item) return;
-    
-    // Ensure minimum scan duration
-    const elapsed = this.scanStartTime ? (Date.now() - this.scanStartTime) : 0;
-    const remainingTime = Math.max(0, this.minScanDuration - elapsed);
-    
-    if (remainingTime > 0) {
-      setTimeout(() => this.completeNow(countFiles, countOccs), remainingTime);
-    } else {
-      this.completeNow(countFiles, countOccs);
-    }
-  }
-
-  private completeNow(countFiles: number, countOccs: number) {
     // Stop animation
     if (this.scanTimer) {
       clearInterval(this.scanTimer);
       this.scanTimer = undefined;
     }
-    this.scanStartTime = undefined;
     this.update(countFiles, countOccs);
   }
 
