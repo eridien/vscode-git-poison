@@ -43,13 +43,50 @@ function pickGlobalOccurrence(
   ed: vscode.TextEditor | undefined,
   dir: 'next' | 'prev'
 ) {
-  if (ed) {
-    const idx = findIndexForPosition(all, ed.document.uri, ed.selection.active, dir);
-    return all[(idx + all.length) % all.length];
+  if (!ed) {
+    // No editor: wrap from ends
+    return all[dir === 'next' ? 0 : (all.length - 1)];
   }
 
-  // No editor: wrap from ends
-  return all[dir === 'next' ? 0 : (all.length - 1)];
+  // Sort all occurrences globally (by file, then position)
+  const sorted = all.slice().sort(sortOccurrences);
+  
+  // Find current position in the globally sorted list
+  const currentUri = ed.document.uri;
+  const currentPos = ed.selection.active;
+  
+  let targetIndex = -1;
+  
+  for (let i = 0; i < sorted.length; i++) {
+    const occ = sorted[i];
+    
+    if (dir === 'next') {
+      // For next: find first occurrence after current position
+      if (occ.uri.fsPath > currentUri.fsPath || 
+         (occ.uri.fsPath === currentUri.fsPath && 
+          (occ.pos.line > currentPos.line || 
+           (occ.pos.line === currentPos.line && occ.pos.character > currentPos.character)))) {
+        targetIndex = i;
+        break;
+      }
+    } else {
+      // For prev: find last occurrence before current position
+      if (occ.uri.fsPath < currentUri.fsPath || 
+         (occ.uri.fsPath === currentUri.fsPath && 
+          (occ.pos.line < currentPos.line || 
+           (occ.pos.line === currentPos.line && occ.pos.character < currentPos.character)))) {
+        targetIndex = i;
+        // Don't break - keep looking for the last one before current position
+      }
+    }
+  }
+  
+  // If no target found, wrap around
+  if (targetIndex === -1) {
+    targetIndex = dir === 'next' ? 0 : (sorted.length - 1);
+  }
+  
+  return sorted[targetIndex];
 }
 
 async function reveal(occ: Occ) {
@@ -64,17 +101,4 @@ function sortOccurrences(a: Occ, b: Occ): number {
   return a.uri.fsPath === b.uri.fsPath
     ? (a.pos.line - b.pos.line) || (a.pos.character - b.pos.character)
     : a.uri.fsPath.localeCompare(b.uri.fsPath);
-}
-
-function findIndexForPosition(all: Occ[], uri: vscode.Uri, pos: vscode.Position, dir: 'next' | 'prev'): number {
-  const sorted = all.slice().sort(sortOccurrences);
-  const idx = sorted.findIndex(o =>
-    o.uri.fsPath === uri.fsPath &&
-    (dir === 'next'
-      ? (o.pos.line > pos.line || (o.pos.line === pos.line && o.pos.character > pos.character))
-      : (o.pos.line < pos.line || (o.pos.line === pos.line && o.pos.character < pos.character)))
-  );
-  if (idx === -1) return dir === 'next' ? 0 : (sorted.length - 1);
-  const occ = sorted[idx];
-  return all.findIndex(o => o.uri.fsPath === occ.uri.fsPath && o.pos.isEqual(occ.pos));
 }

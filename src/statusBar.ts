@@ -6,7 +6,7 @@ export class PillStatusBar {
   private item: vscode.StatusBarItem | undefined;
   private scanTimer?: ReturnType<typeof setInterval>;
   private scanStartTime?: number;
-  private minScanDuration = 1000; // Minimum 1 second of scanning animation
+  private minScanDuration = 300; // Minimum 0.3 seconds of scanning animation
 
   constructor(private enabled: boolean) {
     if (enabled) {
