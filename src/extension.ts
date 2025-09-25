@@ -57,15 +57,6 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  // LAZY STARTUP:
-  // - No fullScan() here.
-  // - Start watchers and lightly warm from visible editors + cheap git diffs.
-  indexer.activateWatchers();
-  await indexer.lazyWarm(vscode.window.activeTextEditor);
-
-  // Initialize status bar based on current config AFTER lazy warming
-  updateStatusBar();
-
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     log(';err', 
@@ -135,13 +126,6 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Update status bar when counts change (only if it exists)
-  indexer.onCountsChanged(({ files, occs }) => {
-    if (status) {
-      status.update(files, occs);
-    }
-  });
-  
   context.subscriptions.push(
     configWatcher,
     { dispose: () => status?.dispose() },

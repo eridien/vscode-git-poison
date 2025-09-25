@@ -7,7 +7,7 @@ export class PillStatusBar {
   constructor(private enabled: boolean) {
     if (enabled) {
       this.item = vscode.window.createStatusBarItem('gitPoison.pillCount', vscode.StatusBarAlignment.Left, 100);
-      this.item.tooltip = 'Number of pills in number of files. Click to rescan.';
+      this.item.tooltip = 'Files containing pills';
       this.item.command = 'vscode-git-poison.rescanIncremental';
       this.item.show();
       
@@ -26,8 +26,7 @@ export class PillStatusBar {
 
   update(countFiles: number, countOccs: number) {
     if (!this.item) return;
-    this.item.text = `$(stop-circle) Pills: ${countOccs} found`;
-    this.item.tooltip = 'Pills found in open files and Git changes. Run "Full Rescan" for complete count.';
+    this.item.text = `$(stop-circle) Pills: ${countOccs} in ${countFiles}`;
   }
 
   showScanning() {
