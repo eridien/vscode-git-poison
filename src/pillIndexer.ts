@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { getExcludeGlobs, getPill } from './config';
 import { gitChangedPaths } from './gitHelpers';
-import { Occ } from './navigation';
+import { Occ } from './jump';
 
 export class PillIndexer {
     private filesWithPills = new Set<string>();           // fsPath
@@ -38,7 +38,7 @@ export class PillIndexer {
    * Incremental refresh using Git (changed + staged + untracked).
    * This is cheap and is used both after startup and on-demand.
    */
-  async incrementalRefresh() {
+  async rescanIncremental() {
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (!folders.length) return;
     const paths = new Set<string>();
@@ -63,7 +63,7 @@ export class PillIndexer {
       this.updateFromDoc(contextEditor.document);
     }
     this.warmOpenEditors();
-    await this.incrementalRefresh();
+    await this.rescanIncremental();
   }
 
   /**

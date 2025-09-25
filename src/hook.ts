@@ -11,12 +11,16 @@ let repoRootUri: vscode.Uri;
 let hooksDirUri: vscode.Uri;
 let hookPathUri: vscode.Uri;
 let hookPath:    string;
+let poisonDirUri: vscode.Uri;
+let overrideStartUri: vscode.Uri;
 
 export function activate(repoRootUriIn: vscode.Uri) {
   repoRootUri = repoRootUriIn;
   hooksDirUri = vscode.Uri.joinPath(repoRootUri, '.git', 'hooks');
   hookPathUri = vscode.Uri.joinPath(hooksDirUri, 'pre-commit');
   hookPath    = hookPathUri.fsPath;
+  poisonDirUri = vscode.Uri.joinPath(repoRootUri, '.git', 'git-poison');
+  overrideStartUri = vscode.Uri.joinPath(poisonDirUri, 'override-start');
 }
 
 function getScript() {
@@ -213,5 +217,17 @@ export async function installHook(status: "ours" | "other" | "none" | number
       'Git Poison: Extension not activated. Failed to install Git hook: ' + (e?.message ?? e)
     );
     return false;
+  }
+}
+
+export async function overrideCommitBlocking() {
+  log('overrideCommitBlocking');
+  try {
+    await vscode.workspace.fs.createDirectory(poisonDirUri);
+    await vscode.workspace.fs.writeFile(overrideStartUri,
+                          Buffer.from(String(Math.floor(Date.now()/1000))));
+  }
+  catch (err: any) {
+    log(`Git Poison: Override Commit Blocking Command failed: ${err.message}`);
   }
 }

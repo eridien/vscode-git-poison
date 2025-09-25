@@ -23,19 +23,19 @@
     "commands": [
       {
         "command": "vscode-git-poison.jumpPrev",
-        "title": "Pills: Jump Prev"
+        "title": "Git Poison: Jump To Previous Pill"
       },
       {
         "command": "vscode-git-poison.jumpNext",
-        "title": "Pills: Jump Next"
+        "title": "Git Poison: Jump To Next Pill"
       },
       {
         "command": "vscode-git-poison.rescanFull",
-        "title": "Pills: Full Rescan"
+        "title": "Git Poison: Scan all files"
       },
       {
         "command": "vscode-git-poison.rescanIncremental",
-        "title": "Pills: Incremental Refresh"
+        "title": "Git Poison: Incremental Refresh"
       },
       {
         "command": "vscode-git-poison.overrideCommitBlocking",
