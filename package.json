@@ -49,12 +49,12 @@
     "keybindings": [
       {
         "command": "vscode-git-poison.jumpNext",
-        "key": "alt+]",
+        "key": "ctrl-alt-0",
         "when": "editorTextFocus"
       },
       {
         "command": "vscode-git-poison.jumpPrev",
-        "key": "alt+[",
+        "key": "ctrl-alt-9",
         "when": "editorTextFocus"
       },
       {
@@ -96,7 +96,7 @@
           "default": "**/{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}/**",
           "order": 4,
           "title": "Folders/Files to Exclude",
-          "description": "Glob patterns to exclude from scanning (comma not supported; use brace expansion)."
+          "description": "Glob patterns to exclude from scanning. Use brace expansion syntax like {folder1,folder2} for multiple folders. Comma-separated patterns are not supported - use brace expansion instead."
         }
       }
     }
