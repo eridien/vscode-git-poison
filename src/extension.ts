@@ -1,85 +1,101 @@
-import * as vscode    from 'vscode';
-import {PillIndexer}  from './pillIndexer';
-import * as jump      from './jump';
-import * as statusBar from './statusBar';
-import * as hook      from './hook';
-import * as utils     from './utils';
-const {log, start, end} = utils.getLog('extn');
+import * as vscode     from 'vscode';
+import { PillIndexer } from './pillIndexer';
+import * as statusBar  from './statusBar';
+import * as hook       from './hook';
+import * as jump       from './jump';
+import * as utils      from './utils';
+
+const {log} = utils.getLog('ext');
 
 export async function activate(context: vscode.ExtensionContext) {
-  start('activate');
+  log('activating Git Poison extension');
   
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  if (!folder) {
-    log(';err', 
-        'Git Poison: You must have a workspace folder open to install. ' +
-        'Extension not activated.');
+  // Initialize utils
+  utils.activate(context);
+
+  // Find .git directory
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (!folders.length) {
+    log('no workspace folders found');
     return;
-  }
-  const repoRootUri = folder.uri;  
-  const gitDirUri = vscode.Uri.joinPath(repoRootUri, '.git');
-  try {
-    await vscode.workspace.fs.stat(gitDirUri);
-  } 
-  catch {
-    log(';err',
-        'Git Poison: No Git directory found in the first workspace folder. ' +
-        'Extension not activated.');
-    return;
-  }
-  const installedStatus = await hook.hookAlreadyInstalled();
-  if (installedStatus !== "ours") {
-    if (installedStatus === "other") {
-      const choice = await vscode.window.showWarningMessage(
-        "Git Poison: A Git pre-commit hook already exists for another app. " +
-        "Overwrite the other one?",
-        { modal: true }, "Yes", "No"
-      );
-      if (choice !== "Yes") {
-        log(';info', "Git Poison: Extension not activated " +
-                    "because the hook installation was cancelled.");
-        return;
-      }
-    }
-    if(!await hook.installHook(installedStatus)) return;
   }
 
+  // For now, use first workspace folder with .git
+  let repoRoot: vscode.Uri | undefined;
+  for (const folder of folders) {
+    const gitDir = vscode.Uri.joinPath(folder.uri, '.git');
+    try {
+      const stat = await vscode.workspace.fs.stat(gitDir);
+      if (stat.type === vscode.FileType.Directory) {
+        repoRoot = folder.uri;
+        break;
+      }
+    } catch {
+      // No .git directory in this folder
+    }
+  }
+
+  if (!repoRoot) {
+    log('no .git directory found in workspace');
+    return;
+  }
+
+  log('found git repo at:', repoRoot.fsPath);
+
+  // Initialize hook system
+  hook.activate(repoRoot);
+  
+  // Check and install hook if needed
+  const hookStatus = await hook.hookAlreadyInstalled();
+  log('hook status:', hookStatus);
+  
+  if (hookStatus !== "ours") {
+    const success = await hook.installHook(hookStatus);
+    if (!success) {
+      log('failed to install hook, extension not fully activated');
+      return;
+    }
+  }
+
+  // Create indexer
   const indexer = new PillIndexer();
 
-  // LAZY STARTUP:
-  indexer.activateWatchers();
+  // Activate status bar FIRST so it can show scanning
+  statusBar.activate(context, indexer);
+
+  // LAZY STARTUP: Don't do expensive scanning at activation, but always do lazy warm
   await indexer.lazyWarm(vscode.window.activeTextEditor);
 
-  hook     .activate(repoRootUri);
-  statusBar.activate(context, indexer);
-  utils    .activate(context);
+  // Activate watchers
+  indexer.activateWatchers();
 
+  // Register commands
   const jumpNext = vscode.commands.registerCommand(
-         'vscode-git-poison.jumpNext', () => jump.jump(indexer, 'next'));
-
+    'vscode-git-poison.jumpNext', () => jump.jump(indexer, 'next'));
+  
   const jumpPrev = vscode.commands.registerCommand(
-         'vscode-git-poison.jumpPrev', () => jump.jump(indexer, 'prev'));
-
-  const overrideCommitBlocking = vscode.commands.registerCommand(
-          'vscode-git-poison.overrideCommitBlocking', async () => {
-    await hook.overrideCommitBlocking(); 
-  });
+    'vscode-git-poison.jumpPrev', () => jump.jump(indexer, 'prev'));
+  
   const fullScan = vscode.commands.registerCommand(
-                           'vscode-git-poison.fullScan', indexer.fullScan);
-
+    'vscode-git-poison.rescanFull', () => indexer.fullScan());
+  
   const rescanIncremental = vscode.commands.registerCommand(
-         'vscode-git-poison.rescanIncremental', indexer.rescanIncremental);
-
+    'vscode-git-poison.rescanIncremental', () => indexer.rescanIncremental());
+  
+  const overrideCommitBlocking = vscode.commands.registerCommand(
+    'vscode-git-poison.overrideCommitBlocking', hook.overrideCommitBlocking);
+  
   const insertPill = vscode.commands.registerCommand(
-                          'vscode-git-poison.insertPill', jump.insertPill);
+    'vscode-git-poison.insertPill', jump.insertPill);
 
+  // Add to subscriptions
   context.subscriptions.push(
-    overrideCommitBlocking, insertPill, 
-    fullScan, rescanIncremental,
-    jumpNext, jumpPrev
+    jumpNext, jumpPrev, fullScan, rescanIncremental, overrideCommitBlocking, insertPill
   );
 
-  end('activate');
+  log('Git Poison extension activated successfully');
 }
 
-export function deactivate() {}
+export function deactivate() {
+  log('Git Poison extension deactivated');
+}

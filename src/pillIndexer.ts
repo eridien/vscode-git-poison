@@ -1,37 +1,70 @@
-import * as vscode from 'vscode';
+import * as vscode                  from 'vscode';
 import { getExcludeGlobs, getPill } from './config';
-import { gitChangedPaths } from './gitHelpers';
-import { Occ } from './jump';
+import { gitChangedPaths }          from './gitHelpers';
+import { Occ }                      from './jump';
 
 export class PillIndexer {
-    private filesWithPills = new Set<string>();           // fsPath
-    private occsByFile = new Map<string, Occ[]>();        // fsPath -> occurrences
-    private debounceTimer?: ReturnType<typeof setTimeout>; // This works everywhere
+  private filesWithPills = new Set<string>();            // fsPath
+  private occsByFile     = new Map<string, Occ[]>();     // fsPath -> occurrences
+  private debounceTimer?: ReturnType<typeof setTimeout>; // This works everywhere
+  private statusBar?: any; // Reference to status bar
   
   // Events for UI (e.g., status bar)
   private _onCountsChanged = new vscode.EventEmitter<{ files: number; occs: number }>();
   public readonly onCountsChanged = this._onCountsChanged.event;
 
-  // ---------- PUBLIC ----------
+  // Add method to set status bar reference
+  setStatusBar(statusBar: any) {
+    this.statusBar = statusBar;
+  }
 
   /**
    * Full scan across the workspace (ripgrep). Kept for manual invocation,
-   * but NOT called at activation anymore (lazy startup).
+   * but NOT called at activation (lazy startup).
    */
   async fullScan() {
+    // Start scanning animation
+    this.statusBar?.showScanning();
+
+    const scanFolderForPills = async (folder: vscode.WorkspaceFolder) => {
+      const include = new vscode.RelativePattern(folder, '**/*');
+      const exclude = getExcludeGlobs();
+    
+      // Find all files
+      const files = await vscode.workspace.findFiles(include, exclude);
+      
+      // Process files in batches to avoid overwhelming the system
+      const batchSize = 50;
+      for (let i = 0; i < files.length; i += batchSize) {
+        const batch = files.slice(i, i + batchSize);
+        const tasks = batch.map(uri => this.processFileForPills(uri));
+        await Promise.all(tasks);
+      }
+    };
+    
     this.filesWithPills.clear();
     this.occsByFile.clear();
 
     const folders = vscode.workspace.workspaceFolders ?? [];
-    if (!folders.length) return;
+    if (!folders.length) {
+      this.statusBar?.showComplete(0, 0);
+      return;
+    }
 
     await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: 'Scanning for pills…' },
       async () => {
-        await Promise.all(folders.map(f => this.scanFolderForPills(f)));
+        await Promise.all(folders.map(f => scanFolderForPills(f)));
       }
     );
+    
     this.emitCounts();
+    
+    // Show completion with current counts
+    const fileCount = this.filesWithPills.size;
+    let occCount = 0;
+    for (const v of this.occsByFile.values()) occCount += v.length;
+    this.statusBar?.showComplete(fileCount, occCount);
   }
 
   /**
@@ -41,12 +74,14 @@ export class PillIndexer {
   async rescanIncremental() {
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (!folders.length) return;
+    
     const paths = new Set<string>();
-
+  
     for (const folder of folders) {
       const changed = await gitChangedPaths(folder);
       changed.forEach(rel => paths.add(vscode.Uri.joinPath(folder.uri, rel).fsPath));
     }
+    
     await this.rescanMany([...paths]);
     this.emitCounts();
   }
@@ -62,20 +97,51 @@ export class PillIndexer {
     if (contextEditor?.document?.uri?.scheme === 'file') {
       this.updateFromDoc(contextEditor.document);
     }
-    this.warmOpenEditors();
-    await this.rescanIncremental();
+    
+    this.warmOpenEditorsQuiet(); // Use quiet version that doesn't emit
+    await this.rescanIncrementalQuiet(); // Use quiet version that doesn't emit
+    
+    // Only emit counts once at the end
+    this.emitCounts();
   }
-
+  
   /**
-   * Scan all currently visible text editors (fast, in-memory).
+   * Scan all currently visible text editors (fast, in-memory) - quiet version.
    */
-  warmOpenEditors() {
+  private warmOpenEditorsQuiet() {
     const editors = vscode.window.visibleTextEditors;
+    
     for (const ed of editors) {
       if (ed.document.uri.scheme !== 'file') continue;
       this.updateFromDoc(ed.document);
     }
-    this.emitCounts();
+    // Don't emit counts here during lazy warm
+  }
+  
+  /**
+   * Incremental refresh using Git (changed + staged + untracked) - quiet version.
+   */
+  private async rescanIncrementalQuiet() {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (!folders.length) return;
+    
+    const paths = new Set<string>();
+  
+    for (const folder of folders) {
+      const changed = await gitChangedPaths(folder);
+      changed.forEach(rel => paths.add(vscode.Uri.joinPath(folder.uri, rel).fsPath));
+    }
+    
+    await this.rescanMany([...paths]);
+    // Don't emit counts here during lazy warm
+  }
+  
+  /**
+   * Scan all currently visible text editors (fast, in-memory).
+   */
+  warmOpenEditors() {
+    this.warmOpenEditorsQuiet();
+    this.emitCounts(); // Only emit when called directly
   }
 
   /**
@@ -115,7 +181,7 @@ export class PillIndexer {
 
   getFilesWithPills(): string[] { return [...this.filesWithPills]; }
 
-  // NEW: return occurrences for a specific file, sorted by position
+  // return occurrences for a specific file, sorted by position
   getOccurrencesForUri(uri: vscode.Uri): Occ[] {
     const arr = this.occsByFile.get(uri.fsPath) ?? [];
     return arr.slice().sort((a, b) =>
@@ -124,28 +190,10 @@ export class PillIndexer {
   }
 
   /**
-   * Whether we’ve indexed anything yet (helps decide if we should lazily warm).
+   * Whether we've indexed anything yet (helps decide if we should lazily warm).
    */
   hasAnyIndex(): boolean {
     return this.filesWithPills.size > 0 || this.occsByFile.size > 0;
-  }
-
-  // ---------- INTERNAL ----------
-
-  private async scanFolderForPills(folder: vscode.WorkspaceFolder) {
-    const include = new vscode.RelativePattern(folder, '**/*');
-    const exclude = getExcludeGlobs();
-  
-    // Find all files
-    const files = await vscode.workspace.findFiles(include, exclude);
-    
-    // Process files in batches to avoid overwhelming the system
-    const batchSize = 50;
-    for (let i = 0; i < files.length; i += batchSize) {
-      const batch = files.slice(i, i + batchSize);
-      const tasks = batch.map(uri => this.processFileForPills(uri));
-      await Promise.all(tasks);
-    }
   }
   
   private async processFileForPills(uri: vscode.Uri): Promise<void> {
@@ -156,6 +204,7 @@ export class PillIndexer {
       // Ignore files that can't be opened
     }
   }
+  
   private async rescanMany(paths: string[]) {
     if (!paths.length) return;
     clearTimeout(this.debounceTimer as any);
@@ -187,16 +236,10 @@ export class PillIndexer {
       occs.push({ uri: doc.uri, pos });
       idx += pill.length || 1;
     }
+    
     this.occsByFile.set(doc.uri.fsPath, occs);
     if (occs.length) this.filesWithPills.add(doc.uri.fsPath);
     else this.filesWithPills.delete(doc.uri.fsPath);
-  }
-
-  private indexDocumentHits(uri: vscode.Uri, ranges: readonly vscode.Range[]) {
-    const occs: Occ[] = ranges.map(r => ({ uri, pos: r.start }));
-    this.occsByFile.set(uri.fsPath, occs);
-    if (occs.length) this.filesWithPills.add(uri.fsPath);
-    else this.filesWithPills.delete(uri.fsPath);
   }
 
   private emitCounts() {

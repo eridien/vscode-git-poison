@@ -5,6 +5,8 @@ import { getShowStatusBar } from './config';
 export class PillStatusBar {
   private item: vscode.StatusBarItem | undefined;
   private scanTimer?: ReturnType<typeof setInterval>;
+  private scanStartTime?: number;
+  private minScanDuration = 1000; // Minimum 1 second of scanning animation
 
   constructor(private enabled: boolean) {
     if (enabled) {
@@ -13,17 +15,14 @@ export class PillStatusBar {
       this.item.command = 'vscode-git-poison.rescanIncremental';
       this.item.show();
       
-      //this.testLoading(); // Simulate loading for 3 seconds
+      // Always start with scanning animation
+      this.showScanning();
     }
   }
   
-  // TEST METHOD - Remove this after testing
-  testLoading() {
-    if (!this.item) return;
-    this.showScanning();
-    setTimeout(() => {
-      this.showComplete(2, 5); // Simulate finding 5 pills in 2 files
-    }, 3000);
+  // Add getter to check if currently scanning
+  get isScanning(): boolean {
+    return this.scanTimer !== undefined;
   }
 
   update(countFiles: number, countOccs: number) {
@@ -34,6 +33,8 @@ export class PillStatusBar {
   showScanning() {
     if (!this.item) return;
 
+    this.scanStartTime = Date.now();
+    
     const spinners = ['/', '-', '\\', '|'];
     let i = 0;
     
@@ -47,12 +48,25 @@ export class PillStatusBar {
 
   showComplete(countFiles: number, countOccs: number) {
     if (!this.item) return;
+    
+    // Ensure minimum scan duration
+    const elapsed = this.scanStartTime ? (Date.now() - this.scanStartTime) : 0;
+    const remainingTime = Math.max(0, this.minScanDuration - elapsed);
+    
+    if (remainingTime > 0) {
+      setTimeout(() => this.completeNow(countFiles, countOccs), remainingTime);
+    } else {
+      this.completeNow(countFiles, countOccs);
+    }
+  }
 
+  private completeNow(countFiles: number, countOccs: number) {
     // Stop animation
     if (this.scanTimer) {
       clearInterval(this.scanTimer);
       this.scanTimer = undefined;
     }
+    this.scanStartTime = undefined;
     this.update(countFiles, countOccs);
   }
 
@@ -64,43 +78,57 @@ export class PillStatusBar {
   }
 }
 
-let status:  PillStatusBar | undefined;
+let status: PillStatusBar | undefined;
 
-export function activate(context: vscode.ExtensionContext, indexer: PillIndexer) {
+export function activate(context: vscode.ExtensionContext, indexer: PillIndexer): PillStatusBar | undefined {
   // Create status bar that can be dynamically shown/hidden
   status = new PillStatusBar(true);
-  updateStatusBar(indexer);
+  
+  // Pass status bar reference to indexer
+  indexer.setStatusBar(status);
   
   // Update status bar when counts change (only if it exists)
   indexer.onCountsChanged(({ files, occs }) => {
-    if (status) { status.update(files, occs); }
+    if (status) { 
+      // Always use showComplete to stop animation and update with real counts
+      status.showComplete(files, occs);
+    }
   });
+  
   // Listen for configuration changes
   const configWatcher = vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration('git-poison.showStatusBar')) {
       updateStatusBar(indexer);
+      // Update the reference when status bar is recreated
+      indexer.setStatusBar(status);
     }
   });
+  
   context.subscriptions.push(
     configWatcher,
     { dispose: () => status?.dispose() }
   );
+
+  return status;
 }
 
-// set status bar visibility based on config and set counts 
 export function updateStatusBar(indexer: PillIndexer) {
   const shouldShow = getShowStatusBar();
   if (shouldShow && !status) {
     // Create status bar when it should be shown but doesn't exist
     status = new PillStatusBar(true);
-    // Update it with current counts
-    const all = indexer.getAllOccurrences();
-    const fileCount = indexer.getFilesWithPills().length;
-    status.update(fileCount, all.length);
+    // Update the indexer reference
+    indexer.setStatusBar(status);
   } else if (!shouldShow && status) {
     // Dispose status bar when it should be hidden
     status.dispose();
     status = undefined;
+    // Clear the indexer reference
+    indexer.setStatusBar(undefined);
   }
 }
 
+// Export function to get current status bar instance
+export function getStatusBar(): PillStatusBar | undefined {
+  return status;
+}

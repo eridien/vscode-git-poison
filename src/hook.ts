@@ -155,8 +155,9 @@ export async function hookAlreadyInstalled():
       return "other";
     }
   } catch (err: any) {
-    if (err.code === 'ENOENT' || err.code === 'FileNotFound') return "none";
-    throw err;
+    // if (err.code === 'ENOENT' || err.code === 'FileNotFound') return "none";
+    // throw err;
+    return "none";
   }
 }
 

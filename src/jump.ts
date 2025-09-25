@@ -21,7 +21,6 @@ export async function jump(indexer: PillIndexer, dir: 'next' | 'prev') {
 
   let all = indexer.getAllOccurrences();
   if (!all.length) {
-    // Still nothing found — offer a one-shot full scan (user pressed jump expecting results).
     await indexer.fullScan();
     all = indexer.getAllOccurrences();
   }
