@@ -27,6 +27,7 @@ module.exports = [
         selector: "import",
         format: ["camelCase", "PascalCase"],
       }],
+      "no-irregular-whitespace": "off",
       "curly": "off",
       "eqeqeq": "off", 
       "no-throw-literal": "warn",

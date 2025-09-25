@@ -3,6 +3,8 @@ const {log, start, end} = getLog('util');
 
 let context: vscode.ExtensionContext | undefined;
 
+//​​​​‌========= ACTIVATE =========
+
 export function activate(contextIn: vscode.ExtensionContext) {
   context = contextIn;
 }
@@ -10,6 +12,8 @@ export function activate(contextIn: vscode.ExtensionContext) {
 // 'err' 'info' 'nomod' 'errmsg'
 
 const outputChannel = vscode.window.createOutputChannel('Git Poison');
+
+//​​​​‌========= GET LOG ==========
 
 export function getLog(module: string) : {
   log:   (...args: any[]) => void;

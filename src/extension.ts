@@ -7,6 +7,8 @@ import * as utils      from './utils';
 
 const {log} = utils.getLog('ext');
 
+//​​​​‌========= ACTIVATE =========
+
 export async function activate(context: vscode.ExtensionContext) {
   log('activating Git Poison extension');
   
@@ -70,11 +72,11 @@ export async function activate(context: vscode.ExtensionContext) {
   indexer.activateWatchers();
 
   // Register commands
-  const jumpNext = vscode.commands.registerCommand(
-    'vscode-git-poison.jumpNext', () => jump.jump(indexer, 'next'));
+  const viewNextPill = vscode.commands.registerCommand(
+    'vscode-git-poison.viewNextPill', () => jump.jump(indexer, 'next'));
   
-  const jumpPrev = vscode.commands.registerCommand(
-    'vscode-git-poison.jumpPrev', () => jump.jump(indexer, 'prev'));
+  const viewPreviousPill = vscode.commands.registerCommand(
+    'vscode-git-poison.viewPreviousPill', () => jump.jump(indexer, 'prev'));
   
   const fullScan = vscode.commands.registerCommand(
     'vscode-git-poison.rescanFull', () => indexer.fullScan());
@@ -90,11 +92,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Add to subscriptions
   context.subscriptions.push(
-    jumpNext, jumpPrev, fullScan, rescanIncremental, overrideCommitBlocking, insertPill
+    viewNextPill, viewPreviousPill, fullScan, rescanIncremental, overrideCommitBlocking, insertPill
   );
 
   log('Git Poison extension activated successfully');
 }
+
+//​​​​‌======== DEACTIVATE ========
 
 export function deactivate() {
   log('Git Poison extension deactivated');

@@ -2,14 +2,20 @@ import * as vscode          from 'vscode';
 import { PillIndexer }      from './pillIndexer';
 import { getShowStatusBar } from './config';
 
+//​​​​‌===== PILL STATUS BAR ======
+
 export class PillStatusBar {
   private item: vscode.StatusBarItem | undefined;
   private scanTimer?: ReturnType<typeof setInterval>;
+  private scanStartTime?: number;
+  private minScanDuration = 300; // Minimum 0.3 seconds of scanning animation
+
+  //​​​​‌====== CONSTRUCTOR =======
 
   constructor(private enabled: boolean) {
     if (enabled) {
       this.item = vscode.window.createStatusBarItem('gitPoison.pillCount', vscode.StatusBarAlignment.Left, 100);
-      this.item.tooltip = 'Poison Pill Count (click to rescan)';
+      this.item.tooltip = 'Poison Pills: staged / total (click to rescan)';
       this.item.command = 'vscode-git-poison.rescanIncremental';
       this.item.show();
       
@@ -23,13 +29,19 @@ export class PillStatusBar {
     return this.scanTimer !== undefined;
   }
 
-  update(countFiles: number, countOccs: number) {
+  //​​​​‌========= UPDATE =========
+
+  update(stagedCount: number, totalCount: number) {
     if (!this.item) return;
-    this.item.text = `$(stop-circle) Pills: ${countOccs} in ${countFiles}`;
+    this.item.text = `$(stop-circle) Pills: ${stagedCount}/${totalCount}`;
   }
+
+  //​​​​‌===== SHOW SCANNING ======
 
   showScanning() {
     if (!this.item) return;
+
+    this.scanStartTime = Date.now();
     
     const spinners = ['/', '-', '\\', '|'];
     let i = 0;
@@ -42,14 +54,35 @@ export class PillStatusBar {
     }, 300);
   }
 
-  showComplete(countFiles: number, countOccs: number) {
+  //​​​​‌===== SHOW COMPLETE ======
+
+  showComplete(stagedCount: number, totalCount: number) {
+    if (!this.item) return;
+    
+    // Ensure minimum scan duration
+    const elapsed = this.scanStartTime ? (Date.now() - this.scanStartTime) : 0;
+    const remainingTime = Math.max(0, this.minScanDuration - elapsed);
+    
+    if (remainingTime > 0) {
+      setTimeout(() => this.completeNow(stagedCount, totalCount), remainingTime);
+    } else {
+      this.completeNow(stagedCount, totalCount);
+    }
+  }
+
+  //​​​​‌====== COMPLETE NOW ======
+
+  private completeNow(stagedCount: number, totalCount: number) {
     // Stop animation
     if (this.scanTimer) {
       clearInterval(this.scanTimer);
       this.scanTimer = undefined;
     }
-    this.update(countFiles, countOccs);
+    this.scanStartTime = undefined;
+    this.update(stagedCount, totalCount);
   }
+
+  //​​​​‌======== DISPOSE =========
 
   dispose() { 
     if (this.scanTimer) {
@@ -61,6 +94,8 @@ export class PillStatusBar {
 
 let status: PillStatusBar | undefined;
 
+//​​​​‌========= ACTIVATE =========
+
 export function activate(context: vscode.ExtensionContext, indexer: PillIndexer): PillStatusBar | undefined {
   // Create status bar that can be dynamically shown/hidden
   status = new PillStatusBar(true);
@@ -69,10 +104,10 @@ export function activate(context: vscode.ExtensionContext, indexer: PillIndexer)
   indexer.setStatusBar(status);
   
   // Update status bar when counts change (only if it exists)
-  indexer.onCountsChanged(({ files, occs }) => {
+  indexer.onCountsChanged(({ staged, total }) => {
     if (status) { 
       // Always use showComplete to stop animation and update with real counts
-      status.showComplete(files, occs);
+      status.showComplete(staged, total);
     }
   });
   
@@ -92,6 +127,8 @@ export function activate(context: vscode.ExtensionContext, indexer: PillIndexer)
 
   return status;
 }
+
+//​​​​‌==== UPDATE STATUS BAR =====
 
 export function updateStatusBar(indexer: PillIndexer) {
   const shouldShow = getShowStatusBar();

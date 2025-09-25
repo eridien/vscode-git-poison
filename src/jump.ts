@@ -4,6 +4,8 @@ import * as config     from './config';
 
 export type Occ = { uri: vscode.Uri; pos: vscode.Position };
 
+//​​​​‌======= INSERT PILL ========
+
 export function insertPill() {
   const ed = vscode.window.activeTextEditor;
   if (!ed) return;
@@ -12,6 +14,8 @@ export function insertPill() {
   }); 
   vscode.window.showInformationMessage('Inserted poison pill.');
 }
+
+//​​​​‌=========== JUMP ===========
 
 export async function jump(indexer: PillIndexer, dir: 'next' | 'prev') {
   // If we have no index yet (first use), lazily warm before attempting a jump.
@@ -89,6 +93,8 @@ function pickGlobalOccurrence(
   return sorted[targetIndex];
 }
 
+//​​​​‌========== REVEAL ==========
+
 async function reveal(occ: Occ) {
   const doc = await vscode.workspace.openTextDocument(occ.uri);
   const editor = await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: false });
@@ -96,6 +102,8 @@ async function reveal(occ: Occ) {
   editor.selection = sel;
   editor.revealRange(new vscode.Range(occ.pos, occ.pos), vscode.TextEditorRevealType.InCenter);
 }
+
+//​​​​‌===== SORT OCCURRENCES =====
 
 function sortOccurrences(a: Occ, b: Occ): number {
   return a.uri.fsPath === b.uri.fsPath

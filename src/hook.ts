@@ -14,6 +14,8 @@ let hookPath:    string;
 let poisonDirUri: vscode.Uri;
 let overrideStartUri: vscode.Uri;
 
+//​​​​‌========= ACTIVATE =========
+
 export function activate(repoRootUriIn: vscode.Uri) {
   repoRootUri = repoRootUriIn;
   hooksDirUri = vscode.Uri.joinPath(repoRootUri, '.git', 'hooks');
@@ -22,6 +24,8 @@ export function activate(repoRootUriIn: vscode.Uri) {
   poisonDirUri = vscode.Uri.joinPath(repoRootUri, '.git', 'git-poison');
   overrideStartUri = vscode.Uri.joinPath(poisonDirUri, 'override-start');
 }
+
+//​​​​‌======== GET SCRIPT ========
 
 function getScript() {
   return `#!/bin/sh
@@ -140,6 +144,8 @@ exit 1
 
 `;}
 
+//​​​​‌== HOOK ALREADY INSTALLED ==
+
 export async function hookAlreadyInstalled(): 
                      Promise<"ours" | "other" | "none" | number> {
   let oldVersion = 0;
@@ -167,6 +173,8 @@ function isWindowsUNCWSL(uri: vscode.Uri): boolean {
     && uri.scheme === 'file'
     && /^\\\\wsl\.localhost\\/.test(uri.fsPath);
 }
+
+//​​​​‌======= INSTALL HOOK =======
 
 export async function installHook(status: "ours" | "other" | "none" | number
                                   = HOOK_VERSION): Promise<boolean> {
@@ -220,6 +228,8 @@ export async function installHook(status: "ours" | "other" | "none" | number
     return false;
   }
 }
+
+//​​​​‌= OVERRIDE COMMIT BLOCKING =
 
 export async function overrideCommitBlocking() {
   log('overrideCommitBlocking');

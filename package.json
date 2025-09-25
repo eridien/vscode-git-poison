@@ -22,11 +22,11 @@
   "contributes": {
     "commands": [
       {
-        "command": "vscode-git-poison.jumpPrev",
+        "command": "vscode-git-poison.viewPreviousPill",
         "title": "Git Poison: Jump To Previous Pill"
       },
       {
-        "command": "vscode-git-poison.jumpNext",
+        "command": "vscode-git-poison.viewNextPill",
         "title": "Git Poison: Jump To Next Pill"
       },
       {
@@ -48,12 +48,12 @@
     ],
     "keybindings": [
       {
-        "command": "vscode-git-poison.jumpNext",
+        "command": "vscode-git-poison.viewNextPill",
         "key": "ctrl-alt-0",
         "when": "editorTextFocus"
       },
       {
-        "command": "vscode-git-poison.jumpPrev",
+        "command": "vscode-git-poison.viewPreviousPill",
         "key": "ctrl-alt-9",
         "when": "editorTextFocus"
       },
@@ -89,7 +89,7 @@
           "default": true,
           "order": 3,
           "title": "Show Status Bar",
-          "description": "Show a status bar item with pill counts."
+          "description": "Show a status bar item with pill counts in staged files and total number of pills. If staged count is greater than zero then committing is blocked. The total number may be low when scanning is needed."
         },
         "git-poison.excludeGlobs": {
           "type": "string",
