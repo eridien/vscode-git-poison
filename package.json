@@ -50,12 +50,10 @@
       {
         "command": "vscode-git-poison.viewNextPill",
         "key": "ctrl-alt-0",
-        "when": "editorTextFocus"
       },
       {
         "command": "vscode-git-poison.viewPreviousPill",
         "key": "ctrl-alt-9",
-        "when": "editorTextFocus"
       },
       {
         "command": "vscode-git-poison.overrideCommitBlocking",
