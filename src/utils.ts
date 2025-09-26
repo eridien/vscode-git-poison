@@ -84,12 +84,10 @@ export function getLog(module: string) : {
                  (errMsg !== undefined ? errMsg : '') +
                  par.join(' ');
 
-    const infoLine = par.join(' ').replace('parse: ','');
-
     outputChannel.appendLine(line);
     if (errFlag) console.error(line);
-    else console.log(line);
-    if (infoFlag) log(';info', infoLine);
+    else         console.log(line);
+    if (infoFlag) vscode.window.showInformationMessage(par.join(' '));
   };
 
   return { log, start, end };

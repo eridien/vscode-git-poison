@@ -1,7 +1,7 @@
-import * as vscode from 'vscode';
-import * as fs    from 'fs/promises';
-import { getExcludeGlobs, getPill, getOverrideSecs } from './config';
-import * as utils from './utils';
+import * as vscode                  from 'vscode';
+import * as fs                      from 'fs/promises';
+import { getPill, getOverrideSecs } from './config';
+import * as utils                   from './utils';
 const {log, start, end} = utils.getLog('hook');
 
 const HOOK_VERSION = 1;
@@ -237,6 +237,7 @@ export async function overrideCommitBlocking() {
     await vscode.workspace.fs.createDirectory(poisonDirUri);
     await vscode.workspace.fs.writeFile(overrideStartUri,
                           Buffer.from(String(Math.floor(Date.now()/1000))));
+    log(';info', `Git Poison: Starting ${getOverrideSecs()} second override to allow pill commits.`);
   }
   catch (err: any) {
     log(`Git Poison: Override Commit Blocking Command failed: ${err.message}`);
