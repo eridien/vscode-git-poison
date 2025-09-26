@@ -112,9 +112,9 @@ export function activate(context: vscode.ExtensionContext, indexer: PillIndexer)
   });
   
   // Listen for configuration changes
-  const configWatcher = vscode.workspace.onDidChangeConfiguration(e => {
+  const configWatcher = vscode.workspace.onDidChangeConfiguration(async e => {
     if (e.affectsConfiguration('git-poison.showStatusBar')) {
-      updateStatusBar(indexer);
+      await updateStatusBar(indexer);
       // Update the reference when status bar is recreated
       indexer.setStatusBar(status);
     }
@@ -130,13 +130,18 @@ export function activate(context: vscode.ExtensionContext, indexer: PillIndexer)
 
 //​​​​‌==== UPDATE STATUS BAR =====
 
-export function updateStatusBar(indexer: PillIndexer) {
+export async function updateStatusBar(indexer: PillIndexer) {
   const shouldShow = getShowStatusBar();
   if (shouldShow && !status) {
     // Create status bar when it should be shown but doesn't exist
     status = new PillStatusBar(true);
     // Update the indexer reference
     indexer.setStatusBar(status);
+    
+    // NEW: Immediately emit current counts to stop the scanning animation
+    // and show the actual pill counts
+    await indexer.emitCounts();
+    
   } else if (!shouldShow && status) {
     // Dispose status bar when it should be hidden
     status.dispose();
@@ -145,7 +150,6 @@ export function updateStatusBar(indexer: PillIndexer) {
     indexer.setStatusBar(undefined);
   }
 }
-
 // Export function to get current status bar instance
 export function getStatusBar(): PillStatusBar | undefined {
   return status;

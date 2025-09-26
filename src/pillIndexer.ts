@@ -144,6 +144,8 @@ export class PillIndexer {
     // Start scanning animation
     this.statusBar?.showScanning();
 
+    //​​​​‌ SCAN FOLDER FOR PILLS =
+
     const scanFolderForPills = async (folder: vscode.WorkspaceFolder) => {
       // Get all files respecting both gitignore and exclude globs
       const files = await this.getAllTrackedAndUntrackedFiles(folder);
@@ -565,7 +567,7 @@ export class PillIndexer {
 
   //​​​​‌====== EMIT COUNTS =======
 
-  private async emitCounts() {
+  public async emitCounts() {
     let totalOccs = 0;
     for (const v of this.occsByFile.values()) totalOccs += v.length;
     
