@@ -164,8 +164,6 @@ function pickGlobalOccurrence(
   return sorted[targetIndex];
 }
 
-// Replace the reveal function with this improved version:
-
 //​​​​‌========== REVEAL ==========
 
 async function reveal(occ: Occ) {

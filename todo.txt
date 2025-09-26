@@ -1,9 +1,11 @@
 
 todo ...
   clean out old req/resp files
-  ignore folders listed in settings
-  don't insert in excluded files
 
 test ...
+  all settings
+  gitignore
   check commit of all four possible staged/unstaged states
-  change settings => get script
+  all keys
+  jump
+  

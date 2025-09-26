@@ -7,7 +7,7 @@
       "request": "launch",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
-        "/root/wsl-apps/test"
+        "/root/wsl-apps/vscode-git-poison-test"
       ],
       "outFiles": [
         "${workspaceFolder}/out/**/*.js"
