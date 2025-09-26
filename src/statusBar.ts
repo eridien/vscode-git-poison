@@ -96,12 +96,23 @@ let status: PillStatusBar | undefined;
 
 //​​​​‌========= ACTIVATE =========
 
+// ...existing code...
+
 export function activate(context: vscode.ExtensionContext, indexer: PillIndexer): PillStatusBar | undefined {
-  // Create status bar that can be dynamically shown/hidden
-  status = new PillStatusBar(true);
+  // Check if status bar should be shown based on user settings
+  const shouldShow = getShowStatusBar();
   
-  // Pass status bar reference to indexer
-  indexer.setStatusBar(status);
+  // Create status bar only if it should be shown
+  if (shouldShow) {
+    status = new PillStatusBar(true);
+    
+    // Pass status bar reference to indexer
+    indexer.setStatusBar(status);
+  } else {
+    // Don't create status bar if disabled
+    status = undefined;
+    indexer.setStatusBar(undefined);
+  }
   
   // Update status bar when counts change (only if it exists)
   indexer.onCountsChanged(({ staged, total }) => {

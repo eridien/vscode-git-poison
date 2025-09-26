@@ -49,11 +49,11 @@
     "keybindings": [
       {
         "command": "vscode-git-poison.viewNextPill",
-        "key": "ctrl-alt-0",
+        "key": "ctrl-alt-0"
       },
       {
         "command": "vscode-git-poison.viewPreviousPill",
-        "key": "ctrl-alt-9",
+        "key": "ctrl-alt-9"
       },
       {
         "command": "vscode-git-poison.overrideCommitBlocking",

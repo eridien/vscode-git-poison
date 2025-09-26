@@ -28,6 +28,5 @@ export function getShowStatusBar(): boolean {
 export function getExcludeGlobs(): string {
   return vscode.workspace
                .getConfiguration(EXT_ID).get<string>('excludeGlobs') ?? 
-          "**&#47;{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}&#47;**
-";
+          "**&#47;{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}&#47;**";
 }
