@@ -12,7 +12,6 @@ export function insertPill() {
   ed.edit(editBuilder => {
     editBuilder.insert(ed.selection.active, config.getPill());
   }); 
-  vscode.window.showInformationMessage('Inserted poison pill.');
 }
 
 //​​​​‌=========== JUMP ===========

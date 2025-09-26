@@ -64,20 +64,88 @@ export class PillIndexer {
   }
 
   /**
+   * Get all non-ignored files in the workspace using Git
+   */
+  private async getAllTrackedAndUntrackedFiles(folder: vscode.WorkspaceFolder): Promise<vscode.Uri[]> {
+    try {
+      const { execFile } = await import('node:child_process');
+      const { promisify } = await import('node:util');
+      const execFileP = promisify(execFile);
+      
+      // Get tracked files and untracked files (but not ignored)
+      const { stdout: tracked } = await execFileP('git', ['ls-files'], {
+        cwd: folder.uri.fsPath,
+        windowsHide: true
+      });
+      
+      const { stdout: untracked } = await execFileP('git', ['ls-files', '--others', '--exclude-standard'], {
+        cwd: folder.uri.fsPath,
+        windowsHide: true
+      });
+      
+      const allFiles = [
+        ...tracked.split(/\r?\n/).map(s => s.trim()).filter(Boolean),
+        ...untracked.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+      ];
+      
+      // Convert to URIs - Git already handled .gitignore
+      // Now we just need to filter by our exclude globs
+      const allUris = allFiles.map(relativePath => vscode.Uri.joinPath(folder.uri, relativePath));
+      
+      // Filter by exclude pattern
+      const excludePattern = getExcludeGlobs();
+      const filteredUris = [];
+      
+      for (const uri of allUris) {
+        const relativePath = vscode.workspace.asRelativePath(uri, false);
+        if (!this.shouldExcludeByPattern(relativePath, excludePattern)) {
+          filteredUris.push(uri);
+        }
+      }
+      
+      return filteredUris;
+        
+    } catch {
+      // Fallback to VS Code file search if Git fails
+      const include = new vscode.RelativePattern(folder, '**/*');
+      const excludePattern = getExcludeGlobs();
+      const exclude = new vscode.RelativePattern(folder, excludePattern);
+      return await vscode.workspace.findFiles(include, exclude);
+    }
+  }
+
+  /**
+   * Simple pattern matching for common exclude patterns
+   */
+  private shouldExcludeByPattern(relativePath: string, excludePattern: string): boolean {
+    // Handle the common case: **/{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}/**
+    if (excludePattern.includes('{') && excludePattern.includes('}')) {
+      const braceStart = excludePattern.indexOf('{');
+      const braceEnd = excludePattern.indexOf('}');
+      const folders = excludePattern.substring(braceStart + 1, braceEnd).split(',');
+      
+      for (const folder of folders) {
+        const folderName = folder.trim();
+        if (relativePath.includes(`/${folderName}/`) || relativePath.startsWith(`${folderName}/`)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
    * Full scan across the workspace (ripgrep). Kept for manual invocation,
    * but NOT called at activation (lazy startup).
    */
   async fullScan() {
     // Start scanning animation
     this.statusBar?.showScanning();
-  
+
     const scanFolderForPills = async (folder: vscode.WorkspaceFolder) => {
-      const include = new vscode.RelativePattern(folder, '**/*');
-      const excludePattern = getExcludeGlobs();
-      const exclude = new vscode.RelativePattern(folder, excludePattern);
-    
-      // Find all files
-      const files = await vscode.workspace.findFiles(include, exclude);
+      // Get all files respecting both gitignore and exclude globs
+      const files = await this.getAllTrackedAndUntrackedFiles(folder);
       
       // Process files in batches to avoid overwhelming the system
       const batchSize = 50;
@@ -134,7 +202,12 @@ export class PillIndexer {
   
     for (const folder of folders) {
       const changed = await gitChangedPaths(folder);
-      changed.forEach(rel => paths.add(vscode.Uri.joinPath(folder.uri, rel).fsPath));
+      // Filter out excluded files from Git changes
+      for (const rel of changed) {
+        if (!this.shouldExcludeByPattern(rel, getExcludeGlobs())) {
+          paths.add(vscode.Uri.joinPath(folder.uri, rel).fsPath);
+        }
+      }
     }
     
     await this.rescanMany([...paths]);
@@ -152,7 +225,11 @@ export class PillIndexer {
    */
   async lazyWarm(contextEditor?: vscode.TextEditor) {
     if (contextEditor?.document?.uri?.scheme === 'file') {
-      this.updateFromDoc(contextEditor.document);
+      // Check if the current editor should be excluded
+      const relativePath = vscode.workspace.asRelativePath(contextEditor.document.uri, false);
+      if (!this.shouldExcludeByPattern(relativePath, getExcludeGlobs())) {
+        this.updateFromDoc(contextEditor.document);
+      }
     }
     
     this.warmOpenEditorsQuiet(); // Use quiet version that doesn't emit
@@ -165,11 +242,18 @@ export class PillIndexer {
   /**
    * Scan all currently visible text editors (fast, in-memory) - quiet version.
    */
-  private warmOpenEditorsQuiet() {
+  private  warmOpenEditorsQuiet() {
     const editors = vscode.window.visibleTextEditors;
     
     for (const ed of editors) {
       if (ed.document.uri.scheme !== 'file') continue;
+      
+      // Check if file should be excluded
+      const relativePath = vscode.workspace.asRelativePath(ed.document.uri, false);
+      if (this.shouldExcludeByPattern(relativePath, getExcludeGlobs())) {
+        continue;
+      }
+      
       this.updateFromDoc(ed.document);
     }
     // Don't emit counts here during lazy warm
@@ -186,7 +270,12 @@ export class PillIndexer {
   
     for (const folder of folders) {
       const changed = await gitChangedPaths(folder);
-      changed.forEach(rel => paths.add(vscode.Uri.joinPath(folder.uri, rel).fsPath));
+      // Filter out excluded files from Git changes
+      for (const rel of changed) {
+        if (!this.shouldExcludeByPattern(rel, getExcludeGlobs())) {
+          paths.add(vscode.Uri.joinPath(folder.uri, rel).fsPath);
+        }
+      }
     }
     
     await this.rescanMany([...paths]);
@@ -207,18 +296,48 @@ export class PillIndexer {
   activateWatchers() {
     vscode.workspace.onDidChangeTextDocument(async ev => {
       if (ev.document.uri.scheme !== 'file') return;
+      
+      // Check if file should be excluded
+      const relativePath = vscode.workspace.asRelativePath(ev.document.uri, false);
+      if (this.shouldExcludeByPattern(relativePath, getExcludeGlobs())) {
+        return;
+      }
+      
       this.updateFromDoc(ev.document);
       await this.emitCounts();
     });
+    
     vscode.workspace.onDidSaveTextDocument(async doc => {
       if (doc.uri.scheme !== 'file') return;
+      
+      // Check if file should be excluded
+      const relativePath = vscode.workspace.asRelativePath(doc.uri, false);
+      if (this.shouldExcludeByPattern(relativePath, getExcludeGlobs())) {
+        return;
+      }
+      
       this.updateFromDoc(doc);
       await this.emitCounts();
     });
+    
     const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, false, false);
-    watcher.onDidCreate(uri => this.rescanOne(uri.fsPath).then(() => this.emitCounts()));
-    watcher.onDidChange(uri => this.rescanOne(uri.fsPath).then(() => this.emitCounts()));
+    
+    watcher.onDidCreate(async uri => {
+      const relativePath = vscode.workspace.asRelativePath(uri, false);
+      if (this.shouldExcludeByPattern(relativePath, getExcludeGlobs())) return;
+      await this.rescanOne(uri.fsPath);
+      await this.emitCounts();
+    });
+    
+    watcher.onDidChange(async uri => {
+      const relativePath = vscode.workspace.asRelativePath(uri, false);
+      if (this.shouldExcludeByPattern(relativePath, getExcludeGlobs())) return;
+      await this.rescanOne(uri.fsPath);
+      await this.emitCounts();
+    });
+    
     watcher.onDidDelete(async uri => {
+      // Always remove from index when deleted (even if it was excluded)
       this.filesWithPills.delete(uri.fsPath);
       this.occsByFile.delete(uri.fsPath);
       await this.emitCounts();
