@@ -23,11 +23,11 @@
     "commands": [
       {
         "command": "vscode-git-poison.viewPreviousPill",
-        "title": "Git Poison: Jump To Previous Pill"
+        "title": "Git Poison: View Previous Pill"
       },
       {
         "command": "vscode-git-poison.viewNextPill",
-        "title": "Git Poison: Jump To Next Pill"
+        "title": "Git Poison: View Next Pill"
       },
       {
         "command": "vscode-git-poison.rescanFull",

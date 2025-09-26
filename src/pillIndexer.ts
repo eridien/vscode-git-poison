@@ -70,12 +70,11 @@ export class PillIndexer {
   async fullScan() {
     // Start scanning animation
     this.statusBar?.showScanning();
-
-    //​​​​‌ SCAN FOLDER FOR PILLS =
-
+  
     const scanFolderForPills = async (folder: vscode.WorkspaceFolder) => {
       const include = new vscode.RelativePattern(folder, '**/*');
-      const exclude = getExcludeGlobs();
+      const excludePattern = getExcludeGlobs();
+      const exclude = new vscode.RelativePattern(folder, excludePattern);
     
       // Find all files
       const files = await vscode.workspace.findFiles(include, exclude);
@@ -88,7 +87,7 @@ export class PillIndexer {
         await Promise.all(tasks);
       }
     };
-    
+        
     this.filesWithPills.clear();
     this.occsByFile.clear();
 
