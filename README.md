@@ -15,6 +15,10 @@ All scans use the Git Grep so this is as fast as normal Git operations
 
 The code to block commits is inside Git at `.git/hooks/pre-commit`.  This means that poison pills are blocked no matter where the git commit is run.  It works in VS Code, external terminals, Git GUI apps, etc. It even works when no VS Code window is running.
 
+### Excluded Files And Folders
+
+Files/folders in *.gitignore*, in addition to the glob patterns in settings, are excluded from the extension actions including *Insert Poison Pill*, scanning the index for pill counts, and watching for pill changes. Jumping to an excluded file pill is not excluded. So jumping finds all pills in the workspace.
+
 ### Status Bar
 
 The status bar option show S/A where S is the number of pills in staged files.  If S is greater than zero then committing will be blocked.  A is the number of pills in the entire workspace.  Clicking on this status causes a *Scan All Files* command to be executed.
@@ -41,7 +45,7 @@ The status bar option show S/A where S is the number of pills in staged files.  
 
 - *Show Status Bar*: Show a status bar item with the number of staged pills and the total number of pills. If the staged count is greater than zero then pill committing is blocked. The total number may be low when scanning is needed.  Default is true.
 
-- *Folders/Files to Exclude*: Glob patterns to exclude from inserting and scanning. Use brace expansion syntax like {folder1,folder2} for multiple folders. Comma-separated patterns are not supported, use brace expansion instead. Default is "&#42;&#42;&#47;{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}&#47;&#42;&#42;".
+- *Folders/Files to Exclude*: Glob patterns to exclude from inserting and scanning, in addition to files in *.gitignore*. Use brace expansion syntax like {folder1,folder2} for multiple folders. Comma-separated patterns are not supported, use brace expansion instead.  Default is "&#42;&#42;&#47;{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}&#47;&#42;&#42;".
 
 
 

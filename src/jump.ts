@@ -15,14 +15,14 @@ export async function insertPill() {
   // Check if current file should be excluded
   const relativePath = vscode.workspace.asRelativePath(ed.document.uri, false);
   if (shouldExcludeByPattern(relativePath, config.getExcludeGlobs())) {
-    log (';info', 'Cannot insert pill: file is in excluded folders.');
+    log (';info', 'Cannot insert pill. File is in excluded folders.');
     return;
   }
   
   // Check if file is in gitignore
   await checkIfInGitignore(ed.document.uri).then(isIgnored => {
     if (isIgnored) {
-      vscode.window.showWarningMessage('Cannot insert pill: file is in .gitignore.');
+      log (';info', 'Cannot insert pill. File is in .gitignore.');
       return;
     }
     
