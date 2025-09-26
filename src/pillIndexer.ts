@@ -27,7 +27,7 @@ export class PillIndexer {
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (!folders.length) return 0;
     
-    const stagedPaths = new Set<string>();
+    const stagedFiles = new Set<string>();
     
     // Get all staged files from git
     for (const folder of folders) {
@@ -42,10 +42,11 @@ export class PillIndexer {
           windowsHide: true 
         });
         
-        const stagedFiles = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-        stagedFiles.forEach(rel => {
-          const fullPath = vscode.Uri.joinPath(folder.uri, rel).fsPath;
-          stagedPaths.add(fullPath);
+        const stagedFilesFromGit = stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        stagedFilesFromGit.forEach(relativePath => {
+          // Convert relative path to full path for comparison
+          const fullPath = vscode.Uri.joinPath(folder.uri, relativePath).fsPath;
+          stagedFiles.add(fullPath);
         });
       } catch {
         // Ignore git errors
@@ -55,7 +56,7 @@ export class PillIndexer {
     // Count pills in staged files
     let stagedCount = 0;
     for (const [filePath, occs] of this.occsByFile) {
-      if (stagedPaths.has(filePath)) {
+      if (stagedFiles.has(filePath)) {
         stagedCount += occs.length;
       }
     }
@@ -290,6 +291,8 @@ export class PillIndexer {
     await this.emitCounts(); // Only emit when called directly
   }
 
+  // Replace the activateWatchers method with this enhanced version:
+
   /**
    * Watchers to keep the cache fresh going forward.
    */
@@ -340,6 +343,19 @@ export class PillIndexer {
       // Always remove from index when deleted (even if it was excluded)
       this.filesWithPills.delete(uri.fsPath);
       this.occsByFile.delete(uri.fsPath);
+      await this.emitCounts();
+    });
+
+    // NEW: Watch for Git index changes (staging/unstaging operations)
+    const gitIndexWatcher = vscode.workspace.createFileSystemWatcher('**/.git/index', false, false, true);
+    
+    gitIndexWatcher.onDidChange(async () => {
+      console.log('Git index changed - updating staged counts');
+      // Git index changed, update counts to reflect new staging status
+      await this.emitCounts();
+    });
+
+    gitIndexWatcher.onDidCreate(async () => {
       await this.emitCounts();
     });
   }
@@ -477,7 +493,7 @@ export class PillIndexer {
     );
     return entries;
   }
-  
+
   // return occurrences for a specific file, sorted by position
   getOccurrencesForUri(uri: vscode.Uri): Occ[] {
     const arr = this.occsByFile.get(uri.fsPath) ?? [];
