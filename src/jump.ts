@@ -6,6 +6,8 @@ const {log} = utils.getLog('jump');
 
 export type Occ = { uri: vscode.Uri; pos: vscode.Position };
 
+//​​​​‌======= INSERT PILL ========
+
 export async function insertPill() {
   const ed = vscode.window.activeTextEditor;
   if (!ed) return;
@@ -28,7 +30,6 @@ export async function insertPill() {
     ed.edit(editBuilder => {
       editBuilder.insert(ed.selection.active, config.getPill());
     }); 
-    vscode.window.showInformationMessage('Inserted poison pill.');
   });
 }
 
@@ -83,6 +84,8 @@ function shouldExcludeByPattern(relativePath: string, excludePattern: string): b
 
 
 // Replace the jump function with this updated version:
+
+//​​​​‌=========== JUMP ===========
 
 export async function jump(indexer: PillIndexer, dir: 'next' | 'prev') {
   // If we have no index yet (first use), lazily warm before attempting a jump.
@@ -163,6 +166,8 @@ function pickGlobalOccurrence(
 
 // Replace the reveal function with this improved version:
 
+//​​​​‌========== REVEAL ==========
+
 async function reveal(occ: Occ) {
   try {
     const doc = await vscode.workspace.openTextDocument(occ.uri);
@@ -176,6 +181,8 @@ async function reveal(occ: Occ) {
     console.error(`Error revealing file ${occ.uri.fsPath}:`, error);
   }
 }
+
+//​​​​‌===== SORT OCCURRENCES =====
 
 function sortOccurrences(a: Occ, b: Occ): number {
   return a.uri.fsPath === b.uri.fsPath
