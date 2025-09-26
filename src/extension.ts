@@ -4,7 +4,6 @@ import * as statusBar  from './statusBar';
 import * as hook       from './hook';
 import * as jump       from './jump';
 import * as utils      from './utils';
-
 const {log} = utils.getLog('extn');
 
 //​​​​‌========= ACTIVATE =========

@@ -356,9 +356,128 @@ export class PillIndexer {
     );
     return entries;
   }
+  
 
-  getFilesWithPills(): string[] { return [...this.filesWithPills]; }
+  // Replace the getAllOccurrencesIncludingExcluded method with this improved version:
 
+  /**
+   * Get all occurrences including those in excluded files (for jump navigation)
+   */
+  async getAllOccurrencesIncludingExcluded(): Promise<Occ[]> {
+    const entries: Occ[] = [];
+    
+    // First, add all currently indexed occurrences
+    for (const occs of this.occsByFile.values()) {
+      entries.push(...occs);
+    }
+    
+    // Then scan excluded files for additional occurrences
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    for (const folder of folders) {
+      try {
+        const { execFile } = await import('node:child_process');
+        const { promisify } = await import('node:util');
+        const execFileP = promisify(execFile);
+        
+        // Get ALL files (including those that would be excluded)
+        const { stdout: tracked } = await execFileP('git', ['ls-files'], {
+          cwd: folder.uri.fsPath,
+          windowsHide: true
+        });
+        
+        const { stdout: untracked } = await execFileP('git', ['ls-files', '--others', '--exclude-standard'], {
+          cwd: folder.uri.fsPath,
+          windowsHide: true
+        });
+        
+        const allFiles = [
+          ...tracked.split(/\r?\n/).map(s => s.trim()).filter(Boolean),
+          ...untracked.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+        ];
+        
+        // Process files that are excluded by our pattern (not already indexed)
+        const excludePattern = getExcludeGlobs();
+        const excludedFiles = allFiles.filter(relativePath => {
+          const uri = vscode.Uri.joinPath(folder.uri, relativePath);
+          // Only process if it's excluded by pattern AND not already indexed
+          return this.shouldExcludeByPattern(relativePath, excludePattern) && 
+                 !this.occsByFile.has(uri.fsPath);
+        });
+        
+        // Scan excluded files for pills with better error handling
+        for (const relativePath of excludedFiles) {
+          try {
+            const uri = vscode.Uri.joinPath(folder.uri, relativePath);
+            
+            // Check if file actually exists and is readable
+            try {
+              await vscode.workspace.fs.stat(uri);
+            } catch {
+              continue; // Skip files that don't exist or can't be accessed
+            }
+            
+            const doc = await vscode.workspace.openTextDocument(uri);
+            const pill = getPill();
+            const text = doc.getText();
+            let idx = 0;
+            while (true) {
+              idx = text.indexOf(pill, idx);
+              if (idx === -1) break;
+              const pos = doc.positionAt(idx);
+              entries.push({ uri: doc.uri, pos });
+              idx += pill.length || 1;
+            }
+          } catch (error) {
+            // Skip files that can't be opened - this is expected for some excluded files
+            console.log(`Skipping excluded file ${relativePath}: ${error}`);
+          }
+        }
+      } catch (gitError) {
+        // Fallback if Git commands fail - use VS Code findFiles without exclude pattern
+        try {
+          const include = new vscode.RelativePattern(folder, '**/*');
+          const allFiles = await vscode.workspace.findFiles(include, null); // No exclusions
+          
+          // Process files not already in our index
+          for (const uri of allFiles) {
+            if (!this.occsByFile.has(uri.fsPath)) {
+              try {
+                // Check if file should be excluded by pattern
+                const relativePath = vscode.workspace.asRelativePath(uri, false);
+                if (this.shouldExcludeByPattern(relativePath, getExcludeGlobs())) {
+                  // This is an excluded file, scan it for pills
+                  const doc = await vscode.workspace.openTextDocument(uri);
+                  const pill = getPill();
+                  const text = doc.getText();
+                  let idx = 0;
+                  while (true) {
+                    idx = text.indexOf(pill, idx);
+                    if (idx === -1) break;
+                    const pos = doc.positionAt(idx);
+                    entries.push({ uri: doc.uri, pos });
+                    idx += pill.length || 1;
+                  }
+                }
+              } catch (error) {
+                // Skip files that can't be opened
+                console.log(`Skipping file ${uri.fsPath}: ${error}`);
+              }
+            }
+          }
+        } catch (fallbackError) {
+          console.log(`Fallback search failed for folder ${folder.uri.fsPath}: ${fallbackError}`);
+        }
+      }
+    }
+    
+    entries.sort((a, b) =>
+      a.uri.fsPath === b.uri.fsPath
+        ? (a.pos.line - b.pos.line) || (a.pos.character - b.pos.character)
+        : a.uri.fsPath.localeCompare(b.uri.fsPath)
+    );
+    return entries;
+  }
+  
   // return occurrences for a specific file, sorted by position
   getOccurrencesForUri(uri: vscode.Uri): Occ[] {
     const arr = this.occsByFile.get(uri.fsPath) ?? [];

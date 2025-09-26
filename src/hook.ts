@@ -223,7 +223,7 @@ export async function installHook(status: "ours" | "other" | "none" | number
   } catch (e: any) {
     log(
       ';infoerr',
-      'Git Poison: Extension not activated. Failed to install Git hook: ' + (e?.message ?? e)
+      'Extension not activated. Failed to install Git hook: ' + (e?.message ?? e)
     );
     return false;
   }
@@ -237,7 +237,7 @@ export async function overrideCommitBlocking() {
     await vscode.workspace.fs.createDirectory(poisonDirUri);
     await vscode.workspace.fs.writeFile(overrideStartUri,
                           Buffer.from(String(Math.floor(Date.now()/1000))));
-    log(';info', `Git Poison: Starting ${getOverrideSecs()} second override to allow pill commits.`);
+    log(';info', `Starting ${getOverrideSecs()} second override to allow pill commits.`);
   }
   catch (err: any) {
     log(`Git Poison: Override Commit Blocking Command failed: ${err.message}`);

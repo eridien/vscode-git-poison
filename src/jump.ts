@@ -1,20 +1,88 @@
 import * as vscode     from 'vscode';
 import { PillIndexer } from './pillIndexer';
 import * as config     from './config';
+import * as utils      from './utils';
+const {log} = utils.getLog('jump');
 
 export type Occ = { uri: vscode.Uri; pos: vscode.Position };
 
-//​​​​‌======= INSERT PILL ========
-
-export function insertPill() {
+export async function insertPill() {
   const ed = vscode.window.activeTextEditor;
   if (!ed) return;
-  ed.edit(editBuilder => {
-    editBuilder.insert(ed.selection.active, config.getPill());
-  }); 
+  
+  // Check if current file should be excluded
+  const relativePath = vscode.workspace.asRelativePath(ed.document.uri, false);
+  if (shouldExcludeByPattern(relativePath, config.getExcludeGlobs())) {
+    log (';info', 'Cannot insert pill: file is in excluded folders.');
+    return;
+  }
+  
+  // Check if file is in gitignore
+  await checkIfInGitignore(ed.document.uri).then(isIgnored => {
+    if (isIgnored) {
+      vscode.window.showWarningMessage('Cannot insert pill: file is in .gitignore.');
+      return;
+    }
+    
+    // Insert the pill
+    ed.edit(editBuilder => {
+      editBuilder.insert(ed.selection.active, config.getPill());
+    }); 
+    vscode.window.showInformationMessage('Inserted poison pill.');
+  });
 }
 
-//​​​​‌=========== JUMP ===========
+/**
+ * Check if a file is in gitignore
+ */
+async function checkIfInGitignore(uri: vscode.Uri): Promise<boolean> {
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+  if (!workspaceFolder) return false;
+  
+  try {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execFileP = promisify(execFile);
+    
+    const relativePath = vscode.workspace.asRelativePath(uri, false);
+    
+    // Use git check-ignore to see if file should be ignored
+    await execFileP('git', ['check-ignore', relativePath], {
+      cwd: workspaceFolder.uri.fsPath,
+      windowsHide: true
+    });
+    
+    // If git check-ignore exits with 0, the file is ignored
+    return true;
+  } catch {
+    // If git check-ignore exits with non-zero, file is not ignored
+    return false;
+  }
+}
+
+/**
+ * Simple pattern matching for common exclude patterns
+ */
+function shouldExcludeByPattern(relativePath: string, excludePattern: string): boolean {
+  // Handle the common case: **/{.git,node_modules,dist,build,.cache,out,tmp,temp,coverage}/**
+  if (excludePattern.includes('{') && excludePattern.includes('}')) {
+    const braceStart = excludePattern.indexOf('{');
+    const braceEnd = excludePattern.indexOf('}');
+    const folders = excludePattern.substring(braceStart + 1, braceEnd).split(',');
+    
+    for (const folder of folders) {
+      const folderName = folder.trim();
+      if (relativePath.includes(`/${folderName}/`) || relativePath.startsWith(`${folderName}/`)) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+
+// Replace the jump function with this updated version:
 
 export async function jump(indexer: PillIndexer, dir: 'next' | 'prev') {
   // If we have no index yet (first use), lazily warm before attempting a jump.
@@ -22,10 +90,11 @@ export async function jump(indexer: PillIndexer, dir: 'next' | 'prev') {
     await indexer.lazyWarm(vscode.window.activeTextEditor);
   }
 
-  let all = indexer.getAllOccurrences();
+  // Use the new method that includes excluded files
+  let all = await indexer.getAllOccurrencesIncludingExcluded();
   if (!all.length) {
     await indexer.fullScan();
-    all = indexer.getAllOccurrences();
+    all = await indexer.getAllOccurrencesIncludingExcluded();
   }
 
   if (!all.length) {
@@ -92,17 +161,21 @@ function pickGlobalOccurrence(
   return sorted[targetIndex];
 }
 
-//​​​​‌========== REVEAL ==========
+// Replace the reveal function with this improved version:
 
 async function reveal(occ: Occ) {
-  const doc = await vscode.workspace.openTextDocument(occ.uri);
-  const editor = await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: false });
-  const sel = new vscode.Selection(occ.pos, occ.pos);
-  editor.selection = sel;
-  editor.revealRange(new vscode.Range(occ.pos, occ.pos), vscode.TextEditorRevealType.InCenter);
+  try {
+    const doc = await vscode.workspace.openTextDocument(occ.uri);
+    const editor = await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: false });
+    const sel = new vscode.Selection(occ.pos, occ.pos);
+    editor.selection = sel;
+    editor.revealRange(new vscode.Range(occ.pos, occ.pos), vscode.TextEditorRevealType.InCenter);
+  } catch (error) {
+    const relativePath = vscode.workspace.asRelativePath(occ.uri, false);
+    vscode.window.showErrorMessage(`Could not open file: ${relativePath}. ${error}`);
+    console.error(`Error revealing file ${occ.uri.fsPath}:`, error);
+  }
 }
-
-//​​​​‌===== SORT OCCURRENCES =====
 
 function sortOccurrences(a: Occ, b: Occ): number {
   return a.uri.fsPath === b.uri.fsPath

@@ -87,7 +87,8 @@ export function getLog(module: string) : {
     outputChannel.appendLine(line);
     if (errFlag) console.error(line);
     else         console.log(line);
-    if (infoFlag) vscode.window.showInformationMessage(par.join(' '));
+    if (infoFlag) vscode.window.showInformationMessage(
+                                 'Git Poison: ' + par.join(' '));
   };
 
   return { log, start, end };
