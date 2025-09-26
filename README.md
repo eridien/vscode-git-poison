@@ -9,29 +9,38 @@ Git Poison is a VS Code extension that blocks a git commit of any file containin
 
 ### Fast
 
-All scans use the Git Grep so this is as fast as normal Git operations
+All scans use the Git Grep command so this is as fast as normal Git operations.
 
 ### Secure
 
-The code to block commits is inside Git at `.git/hooks/pre-commit`.  This means that poison pills are blocked no matter where the git commit is run.  It works in VS Code, external terminals, Git GUI apps, etc. It even works when no VS Code window is running.
+The code to block commits is in a Git pre-commit hook inside of .git. The hook is always active so poison pills are blocked no matter where the git commit is run.  It works in VS Code, external terminals, Git GUI apps, etc. It even works when no VS Code window is running.
 
 ### Excluded Files And Folders
 
-Files/folders in *.gitignore*, in addition to the glob patterns in settings, are excluded from the extension actions including *Insert Poison Pill*, scanning the index for pill counts, and watching for pill changes. Jumping to an excluded file pill is not excluded. So jumping finds all pills in the workspace.
+Files/folders in *.gitignore*, in addition to the glob patterns in settings, are excluded from the extension actions including *Insert Poison Pill*, scanning the index for pill counts, and watching for pill changes. Jumping to a pill in an excluded file is not excluded. So jumping finds all pills in the workspace.
+
+### All File Types Are Supported
+
+Pills are not limited to code files.  They work in all files containing text, even html, JSON, plain text, etc. It is recommended that you start the pill string with a comment to support placing it in more places. If you want it in JSON I recommend using the JSON Commenter extension written by a great guy.
 
 ### Status Bar
 
 The status bar option show S/A where S is the number of pills in staged files.  If S is greater than zero then committing will be blocked.  A is the number of pills in the entire workspace.  Clicking on this status causes a *Scan All Files* command to be executed.
 
+### Uninstall
+
+Unfortunately VS Code does not provide a way for an extension to run cleanup code when it is uninstalled. You should delete the file `.git/hooks/pre-commit` after uninstalling.  However, leaving it in does not really cause a problem because the hook is fast and non-obtrusive.
+
+
 ### Commands
 
-- *Insert Poison Pill*: Paste the poison pill text at selection.  You can also just type the text instead. Default key is *ctrl-alt-+*.
+- *Insert Poison Pill*: Paste the poison pill text at the selection.  You can also just type the text instead. Default key is *ctrl-alt-+*.
 
-- *View Next Pill*: Jump to the next pill and show it. It jumps through all files in the workspace. Default key is *ctrl-alt-)*.
+- *View Next Pill*: Jump to the next pill and show it. It jumps through all pills in the workspace. Default key is *ctrl-alt-)*.
 
 - *View Previous Pill*: Jump to the previous pill and show it. Default key is *ctrl-alt(*.
 
-- *Override Commit Blocking*: For 30 seconds committing pills is allowed. This might be useful for temporary commits of a development branch. Default key is *ctrl-alt--*.
+- *Override Commit Blocking*: This command lets you commit pills without blocking for 30 seconds. This might be useful for temporary commits of a development branch. Default key is *ctrl-alt--*.
 
 - *Incremental Refresh*: Rebuild index of changed files. This should never be needed.  There is no default key.
 
@@ -39,9 +48,9 @@ The status bar option show S/A where S is the number of pills in staged files.  
 
 ### Settings
 
-- *Poison Pill String*: The text string of a poison pill. This will be inserted by the *Insert Pill* command and be used to detect pills. Warning: If you don't remove old pills before changing this setting, you may accidentally commit them. Default is "//❌".
+- *Poison Pill String*: The text string of a poison pill. This will be inserted by the *Insert Pill* command and be used to detect pills. *Warning*: If you don't remove old pills before changing this setting, you may accidentally commit them. Default is "//❌".
 
-- *Override Blocking Timeout (Seconds)*: Git will be allowed to commit pills for this number of seconds after the *Override Commit Blocking* command is executed. After this time, the blocking will be re-enabled. Default is 30 seconds.
+- *Override Blocking Timeout (Seconds)*: You will be allowed to commit pills for this number of seconds after the *Override Commit Blocking* command is executed. After this time, the blocking will be re-enabled. Default is 30 seconds.
 
 - *Show Status Bar*: Show a status bar item with the number of staged pills and the total number of pills. If the staged count is greater than zero then pill committing is blocked. The total number may be low when scanning is needed.  Default is true.
 
