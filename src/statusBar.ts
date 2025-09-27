@@ -16,7 +16,7 @@ export class PillStatusBar {
     if (enabled) {
       this.item = vscode.window.createStatusBarItem('gitPoison.pillCount', vscode.StatusBarAlignment.Left, 100);
       this.item.tooltip = 'Poison Pills: staged / total (click to rescan)';
-      this.item.command = 'vscode-git-poison.rescanIncremental';
+      this.item.command = 'vscode-git-poison.rescanFull';
       this.item.show();
       
       // Always start with scanning animation
