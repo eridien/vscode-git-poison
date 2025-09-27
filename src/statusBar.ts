@@ -94,9 +94,9 @@ export class PillStatusBar {
 
 let status: PillStatusBar | undefined;
 
-//​​​​‌========= ACTIVATE =========
-
 // ...existing code...
+
+//​​​​‌========= ACTIVATE =========
 
 export function activate(context: vscode.ExtensionContext, indexer: PillIndexer): PillStatusBar | undefined {
   // Check if status bar should be shown based on user settings

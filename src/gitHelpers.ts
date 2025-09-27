@@ -3,6 +3,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 const execFileP = promisify(execFile);
 
+//​​​​‌==== GIT CHANGED PATHS =====
+
 export async function gitChangedPaths(folder: vscode.WorkspaceFolder): Promise<string[]> {
   const cwd = folder.uri.fsPath;
   const union = new Set<string>();
@@ -11,6 +13,8 @@ export async function gitChangedPaths(folder: vscode.WorkspaceFolder): Promise<s
   for (const p of await safeGit(['ls-files', '--others', '--exclude-standard'], cwd)) union.add(p); // new
   return [...union].filter(Boolean);
 }
+
+//​​​​‌========= SAFE GIT =========
 
 async function safeGit(args: string[], cwd: string): Promise<string[]> {
   try {
