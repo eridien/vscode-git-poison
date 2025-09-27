@@ -38,7 +38,7 @@ Unfortunately VS Code does not provide a way for an extension to run cleanup cod
 
 - *View Previous Pill*: Jump to the previous pill and show it. Default key is *ctrl-alt(*.
 
-- *Override Commit Blocking*: This command lets you commit pills without blocking for 30 seconds. This might be useful for temporary commits of a development branch. Default key is *ctrl-alt--*.
+- *Override Commit Blocking*: This command lets you commit pills without blocking for 30 seconds. This might be useful for temporary commits of a development branch. Default key is *ctrl-alt--* (minus sign).
 
 - *Incremental Refresh*: Rebuild index of changed files. This should never be needed.  There is no default key.
 
