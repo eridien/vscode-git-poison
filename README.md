@@ -3,9 +3,7 @@
 
 Git Poison is a VS Code extension that blocks a git commit of any file containing a \"Poison Pill\" string. Placing a pill stops accidental committing of unfinished TODOs, debug statements, secrets, etc. It also provides navigation to pill locations.
 
-
-![Intro GIF](images/intro.gif)
-
+![Intro GIF](https://raw.githubusercontent.com/eridien/vscode-git-poison/master/images/intro.gif)
 
 ### Fast
 
@@ -61,9 +59,9 @@ Unfortunately VS Code does not provide a way for an extension to run cleanup cod
 
 #### Author: Mark Hahn (eridien)
 
-#### Marketplace: https://marketplace.visualstudio.com/items?itemName=eridien.vscode-git-poison
+#### Marketplace: https://marketplace.visualstudio.com/items?itemName=eridien.git-poison
 
-#### Open VSX: https://open-vsx.org/extension/eridien/vscode-git-poison
+#### Open VSX: https://open-vsx.org/extension/eridien/git-poison
 
 #### Repo: https://github.com/eridien/vscode-git-poison
 
